@@ -1,0 +1,16 @@
+{
+    "API_KEY": "TELEGRAM API KEY",
+    "DEBUG": false,
+
+    "IRC": {
+        "server": "irc.server.org",
+        "port": 7005,
+        "sendkey": "IRCD LINK BLOCK: recv_key",
+        "recvkey": "IRCD LINK BLOCK: send_key",
+        "name": "telegram.server.org",
+        "sid": "3A6",
+        "description": "Telegram Bridge Server",
+        "network": "IRCNet",
+        "logchan": "#network"
+    }
+}
