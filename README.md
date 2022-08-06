@@ -25,4 +25,4 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 
 ---
 Copyright &copy; 2022 Aaron Blakely
-Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/ephasic)
+Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)
