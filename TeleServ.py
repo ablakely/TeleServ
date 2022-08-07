@@ -120,7 +120,7 @@ def setChan(msg):
     if len(args) > 1:
         bot.reply_to(msg, "Setting IRC channel to {}".format(args[1]))
 
-        sendIRCPrivMsg(sock, "TeleServ", "#network", "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
+        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
 
         localServer["chanmap"][args[1]] = msg.chat.id
         localServer["chanmap"][msg.chat.id] = args[1]
@@ -139,7 +139,7 @@ def conn(msg):
 
     if msg.from_user.username not in localServer["users"]:
         bot.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
-        sendIRCPrivMsg(sock, "TeleServ", "#network", "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
+        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
         addIRCUser(sock, msg.from_user.username, msg.from_user.username, "t.me/{}".format(msg.from_user.username), "+i", name)
         localServer["users"].append(msg.from_user.username)
         localServer["chans"][msg.from_user.username] = []
@@ -239,7 +239,7 @@ def sendIRCAuth(sock):
 def sendIRCBurst(sock):
     ircOut(sock, ":{} BURST".format(conf["IRC"]["sid"]))
     ircOut(sock, ":{} VERSION :Telebridge-1.0 {} :{}".format(conf["IRC"]["sid"], conf["IRC"]["name"], conf["IRC"]["network"]))
-    addIRCUser(sock, "teleserv", "TeleServ", "telegram.ephasic.org", "+i", "Telegram IRC Bridge")
+    addIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["nick"], conf["IRC"]["name"], "+i", "Telegram IRC Bridge")
     ircOut(sock, ":{} ENDBURST".format(conf["IRC"]["sid"]))
 
 def sendIRCPrivMsg(sock, nick, chan, msg):
@@ -263,16 +263,16 @@ def ircPrivMsgHandler(uid, target, msg):
         nick = uid
     
     if target not in localServer["chanmap"].keys():
-        if target == localServer["uids"]["TeleServ"]:
+        if target == localServer["uids"][conf["IRC"]["nick"]]:
             if (msg == "help" or msg == "HELP"):
-                sendIRCNotice(sock, "TeleServ", nick, "***** \x02TeleServ Help\x02 *****")
-                sendIRCNotice(sock, "TeleServ", nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
-                sendIRCNotice(sock, "TeleServ", nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
-                sendIRCNotice(sock, "TeleServ", nick, "**** \x02End of Help\x02 *****")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02TeleServ Help\x02 *****")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "**** \x02End of Help\x02 *****")
             elif (msg == "USERLIST" or msg == "userlist"):
-                sendIRCNotice(sock, "TeleServ", nick, "***** \x02Telegram Users\x02 *****")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02Telegram Users\x02 *****")
                 for user in localServer["users"]:
-                    sendIRCNotice(sock, "TeleServ", nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
+                    sendIRCNotice(sock, conf["IRC"]["nick"], nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
     else:
         to = localServer["chanmap"][target]
         
@@ -367,7 +367,7 @@ def handleSocket(rawdata, sock):
 
                 if logChannelJoined == False:
                     logChannelJoined = True
-                    joinIRCUser(sock, "TeleServ", "#network", "o")
+                    joinIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "o")
                     rejoinTGUsers(sock)
 
         prevline = data
