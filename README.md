@@ -10,19 +10,40 @@ through a single IRC user.
 TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it has been tested on:
 * InspIRCd 3.x
 
+## Installing & Usage
+1) Create a telegram bot \([tutorial](https://core.telegram.org/bots#6-botfather)\)
+1) Create a link block on the IRC server you'll be linking to.
+2) Edit `example.conf.json` and rename to `conf.json`
+3) `pip install pyTelegramBotAPI`
+4) `python TeleServ.py`
+
 
 ## Commands
 
 ### Telegram Group
 
--------------------------------------------------------------------------------
-| Command | Arguments | Description                                           |
-|---------|-----------|-------------------------------------------------------|
-| conn    | (none)    | Connects a telegram user to the IRC server            |
-| setchan | \<chan\>    | (Group Admin/Owner) Sets IRC destination channel      |
-| me      | \<action\>  | Action command (* User slaps mIRC with a large trout) |
--------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+| Command  | Arguments | Description                                             |
+|----------|-----------|---------------------------------------------------------|
+| /conn    | (none)    | Connects a telegram user to the IRC server              |
+| /setchan | \<chan\>    | (Group Admin/Owner) Sets IRC destination channel      |
+| /me      | \<action\>  | Action command (* User slaps mIRC with a large trout) |
+---------------------------------------------------------------------------------
+
+### IRC
+
+Usage: `/msg TeleServ <command>`
+
+----------------------------------------------------------------------------------
+| Command  | Arguments | Description                                             |
+|----------|-----------|---------------------------------------------------------|
+| help     | (none)    | Sends the user a list of commands.                      |
+| userlist | (none)    | Sends the user the list of users being connected.       |
+----------------------------------------------------------------------------------
+
+
 
 ---
 Copyright &copy; 2022 Aaron Blakely
+
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)

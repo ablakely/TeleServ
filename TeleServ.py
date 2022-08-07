@@ -47,6 +47,7 @@ def loadLocalServerState():
         ret["users"] = []
         ret["names"] = {}
         ret["chans"] = {}
+        ret["lastmsg"] = {}
     
     return ret
 
@@ -175,6 +176,7 @@ def tgSendIRCMsg(msg):
         return
 
     sendIRCPrivMsg(sock, msg.from_user.username, localServer["chanmap"][str(msg.chat.id)], msg.text)
+    localServer["lastmsg"][msg.from_user.username] = int(time.time())
 
 
 @bot.chat_member_handler()
@@ -191,7 +193,7 @@ def tgChatMember(message: types.ChatMemberUpdated):
 
 def ircOut(sock, msg):
     log(msg)
-    sock.write(bytes("{}\r\n".format(msg), encoding='ascii'))
+    sock.write(bytes("{}\r\n".format(msg), encoding='utf8'))
 
 def addIRCUser(sock, user, nick, host, modes, real):
     global lastID, localServer
@@ -273,8 +275,15 @@ def ircPrivMsgHandler(uid, target, msg):
                     sendIRCNotice(sock, "TeleServ", nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
     else:
         to = localServer["chanmap"][target]
+        
+        # strip mIRC formatting
+        msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)
 
-        bot.send_message(to, "<{}> {}".format(nick, msg))
+        if re.search(r"ACTION (.*)", msg):
+            msg = re.sub("ACTION ", "", msg)
+            bot.send_message(to, "* {}{}".format(nick, msg))
+        else:
+            bot.send_message(to, "<{}> {}".format(nick, msg))
 
 
 def handleSocket(rawdata, sock):
@@ -332,7 +341,23 @@ def handleSocket(rawdata, sock):
             matches = re.search(r":(.*?) PRIVMSG (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
-                ircPrivMsgHandler(matches[0], matches[1], matches[2])
+
+                if re.search(r"\x01VERSION\x01", matches[2]):
+                    ircOut(sock, ":{} NOTICE {} :VERSION TeleServ v1.0: Telegram to IRC bridge (https://github.com/ablakely/TeleServ) by Aaron Blakely".format(matches[1], matches[0]))
+                else:
+                    ircPrivMsgHandler(matches[0], matches[1], matches[2])
+
+            matches = re.search(r":(.*?) IDLE :(.*)", data)
+            if matches:
+                matches = matches.groups()
+                pprint(matches)
+
+                for k in localServer["uids"]:
+                    if localServer["uids"][k] == matches[1]:
+                        then = localServer["lastmsg"][k]
+                        calc = int(time.time()) - then
+
+                        ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
 
         if re.search(r":(.*?) PING (.*?) (.*)", data):
             matches = re.search(r":(.*?) PING (.*?) (.*)", data)
