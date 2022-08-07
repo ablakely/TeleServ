@@ -42,8 +42,6 @@ Usage: `/msg TeleServ <command>`
 ----------------------------------------------------------------------------------
 
 
-
----
 Copyright &copy; 2022 Aaron Blakely
 
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)
