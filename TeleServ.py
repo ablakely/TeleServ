@@ -16,8 +16,33 @@ import time
 import threading
 import json
 
+motd = """
+@@@@@@@@@@@@@@@@@@@@@@@(*#@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@    .@@@@@@@@@@@@@    ,@@@@@@@@@@@@@
+@@@@@@@@@@   @@@@@@@@@@@@@@@@@@@@@@@@@   @@@@@@@@@
+@@@@@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@@@@@
+@@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@@    TeleServ (v1.0): Telegram Bridge Server
+@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@
+@@% @@@@@@@@@@@@@@@@@@@@@@@@@@@@     @@@@@@@@@@ @@
+@@ @@@@@@@@@@@@@@@@@@@@@@@    @@    @@@@@@@@@@@@ @          Written by Aaron Blakely
+@ *@@@@@@@@@@@@@@@@@    @@@@@  %@  @@@@@@@@@@@@@, 
+@ @@@@@@@@@@@@    @@@@@@@@@  @@@  @@@@@@@@@@@@@@@ 
+  @@@@@@    @@@@@@@@@@@@  @@@@@  @@@@@@@@@@@@@@@@ 
+@ @@@@@@@@@   @@@@@@@@  @@@@@@  @@@@@@@@@@@@@@@@@       https://github.com/ablakely/TeleServ
+@ .@@@@@@@@@@@@@     @@@@@@@@  @@@@@@@@@@@@@@@@@. 
+@@ @@@@@@@@@@@@@@@@  @@@@@@@ ,@@@@@@@@@@@@@@@@@@ @
+@@@ @@@@@@@@@@@@@@@@@ @@@@@ &@@@@@@@@@@@@@@@@@@ @@
+@@@@  @@@@@@@@@@@@@@@@ @@@ @@@@@@@@@@@@@@@@@@  @@@
+@@@@@  @@@@@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@ .@@@@
+@@@@@@@@  @@@@@@@@@@@@@@&@@@@@@@@@@@@@@@@  @@@@@@@
+@@@@@@@@@@,  @@@@@@@@@@@@@@@@@@@@@@@@@  .@@@@@@@@@
+@@@@@@@@@@@@@@@    @@@@@@@@@@@@@    @@@@@@@@@@@@@@
+"""
+
+
 # Globals
 lastID = 0
+membID = 0
 sock = {}
 prevline = ""
 initalBurstSent = False
@@ -27,6 +52,7 @@ remoteServer = {}
 remoteServer["capab"] = {}
 remoteServer["chans"] = {}
 remoteServer["uids"]  = {}
+remoteServer["opers"] = []
 
 def readCfg(file):
     f = open(file)
@@ -195,7 +221,7 @@ def ircOut(sock, msg):
     log(msg)
     sock.write(bytes("{}\r\n".format(msg), encoding='utf8'))
 
-def addIRCUser(sock, user, nick, host, modes, real):
+def addIRCUser(sock, user, nick, host, modes, real, isService=False):
     global lastID, localServer
 
     lastIDStr = str(lastID)
@@ -209,18 +235,26 @@ def addIRCUser(sock, user, nick, host, modes, real):
     localServer["uids"][nick] = conf["IRC"]["sid"] + ap + lastIDStr
     ruid = conf["IRC"]["sid"] + ap + lastIDStr
 
-    ircOut(sock, ":{} UID {} {} {} {} {} {} 0.0.0.0 {} {} :{}".format(conf["IRC"]["sid"], ruid, time.time(), nick, host, host, user, time.time(), modes, real))
+    if isService == True:
+        modes += "o"
+
+    ircOut(sock, ":{} UID {} {} {} {} {} {} 0.0.0.0 {} {} :{}".format(conf["IRC"]["sid"], ruid, int(time.time()), nick, host, host, user, time.time(), modes, real))
+
+    if isService == True:
+        ircOut(sock, ":{} OPERTYPE Service".format(ruid))
+
     lastID += 1
 
 def joinIRCUser(sock, nick, chan, usermode):
-    global remoteServer, localServer
+    global remoteServer, localServer, membID
 
     if chan not in remoteServer["chans"].keys():
         remoteServer["chans"][chan] = {}
         remoteServer["chans"][chan]["ts"] = time.time()
         remoteServer["chans"][chan]["modes"] = "+nt"
 
-    ircOut(sock, ":{} FJOIN {} {} {} :{},{}".format(conf["IRC"]["sid"], chan, remoteServer["chans"][chan]["ts"], remoteServer["chans"][chan]["modes"], usermode, localServer["uids"][nick]))
+    ircOut(sock, ":{} IJOIN {} {} {} :{}".format(localServer["uids"][nick], chan, membID, remoteServer["chans"][chan]["ts"], usermode))
+    membID += 1
 
 def rejoinTGUsers(sock):
     global localServer
@@ -231,21 +265,20 @@ def rejoinTGUsers(sock):
             joinIRCUser(sock, user, chan, "v")
 
 def sendIRCAuth(sock):
-    ircOut(sock, "PASS {} TS6 :{}".format(conf["IRC"]["sendkey"], conf["IRC"]["sid"]))
-    ircOut(sock, "CAPAB QS ENCAP EX IE CHW KNOCK SAVE EUID SERVICES RSFNC")
+    ircOut(sock, "CAPAB START 1205")
+    ircOut(sock, "CAPAB END")
     ircOut(sock, "SERVER {} {} 0 {} :{}".format(conf["IRC"]["name"], conf["IRC"]["sendkey"], conf["IRC"]["sid"], conf["IRC"]["description"]))
 
 
 def sendIRCBurst(sock):
     ircOut(sock, ":{} BURST".format(conf["IRC"]["sid"]))
-    ircOut(sock, ":{} VERSION :Telebridge-1.0 {} :{}".format(conf["IRC"]["sid"], conf["IRC"]["name"], conf["IRC"]["network"]))
-    addIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["nick"], conf["IRC"]["name"], "+i", "Telegram IRC Bridge")
+    ircOut(sock, ":{} SINFO version: :1.0".format(conf["IRC"]["sid"]))
+    ircOut(sock, ":{} SINFO fullversion :TeleServ 1.0 {} :[{}] {}".format(conf["IRC"]["sid"], conf["IRC"]["name"], conf["IRC"]["sid"], conf["IRC"]["network"]))
+    addIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["nick"], conf["IRC"]["name"], "+i", "Telegram IRC Bridge", isService=True)
     ircOut(sock, ":{} ENDBURST".format(conf["IRC"]["sid"]))
 
 def sendIRCPrivMsg(sock, nick, chan, msg):
     global localServer
-
-    print("DEBUG: nick = {}, chan = {}, msg = {}".format(nick, chan, msg))
 
     ircOut(sock, ":{} PRIVMSG {} :{}".format(localServer["uids"][nick], chan, msg))
 
@@ -264,15 +297,23 @@ def ircPrivMsgHandler(uid, target, msg):
     
     if target not in localServer["chanmap"].keys():
         if target == localServer["uids"][conf["IRC"]["nick"]]:
+            if uid not in remoteServer["opers"]:
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "Access denied.")
+                return
+
             if (msg == "help" or msg == "HELP"):
                 sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02TeleServ Help\x02 *****")
                 sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
                 sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
+                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
                 sendIRCNotice(sock, conf["IRC"]["nick"], nick, "**** \x02End of Help\x02 *****")
             elif (msg == "USERLIST" or msg == "userlist"):
                 sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02Telegram Users\x02 *****")
                 for user in localServer["users"]:
                     sendIRCNotice(sock, conf["IRC"]["nick"], nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
+            elif ("RAW" in msg or "raw" in msg):
+                tmp = msg.split(" ")
+                ircOut(sock, " ".join(tmp[1:]))
     else:
         to = localServer["chanmap"][target]
         
@@ -350,7 +391,6 @@ def handleSocket(rawdata, sock):
             matches = re.search(r":(.*?) IDLE :(.*)", data)
             if matches:
                 matches = matches.groups()
-                pprint(matches)
 
                 for k in localServer["uids"]:
                     if localServer["uids"][k] == matches[1]:
@@ -359,11 +399,31 @@ def handleSocket(rawdata, sock):
 
                         ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
 
-        if re.search(r":(.*?) PING (.*?) (.*)", data):
-            matches = re.search(r":(.*?) PING (.*?) (.*)", data)
+            matches = re.search(r":(.*?) MOTD :(.*)", data)
             if matches:
                 matches = matches.groups()
-                ircOut(sock, ":{} PONG {} :{}".format(conf["IRC"]["sid"], matches[2].replace(":", ""), matches[1]))
+
+                motdSplit = motd.split("\n")
+                ircOut(sock, "NUM {} {} 375 :- {} Message of the day -".format(conf["IRC"]["sid"], matches[0], conf["IRC"]["name"]))
+                for line in motdSplit:
+                    ircOut(sock, "NUM {} {} 372 :- {}".format(conf["IRC"]["sid"], matches[0], line))
+                ircOut(sock, "NUM {} {} 376 :End of Message of the Day.".format(conf["IRC"]["sid"], matches[0]))
+
+            matches = re.search(r":(.*?) NICK (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+                remoteServer["uids"][matches[0]]["nick"] = matches[1]
+
+            matches = re.search(r":(.*?) OPERTYPE :(.*)", data)
+            if matches:
+                matches = matches.groups()
+                remoteServer["opers"].append(matches[0])
+
+        if re.search(r":(.*?) PING (.*)", data):
+            matches = re.search(r":(.*?) PING (.*)", data)
+            if matches:
+                matches = matches.groups()
+                ircOut(sock, ":{} PONG :{}".format(conf["IRC"]["sid"], matches[0]))
 
                 if logChannelJoined == False:
                     logChannelJoined = True
@@ -379,10 +439,10 @@ def tgPoll():
 def main():
     global sock, conf
 
-    log("Debug: Creating telegram polling thread.")
+    log("Creating telegram polling thread.")
     threading.Thread(target=tgPoll, name='bot_infinity_polling', daemon=True).start()
 
-    log("Debug: Creating SSL connection to {}".format(conf["IRC"]["server"]))
+    log("Creating SSL connection to {}".format(conf["IRC"]["server"]))
     rawsock = socket.socket(socket.AF_INET)
     context = ssl._create_unverified_context()
     sock = context.wrap_socket(rawsock, server_hostname=conf["IRC"]["server"])
