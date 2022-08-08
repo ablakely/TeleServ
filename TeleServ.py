@@ -430,6 +430,12 @@ def ircPrivMsgHandler(uid, target, msg):
                 if uid == localServer["uids"][n]:
                     senderNick = n
 
+        print("DBUG {} {}".format(nick, to))
+
+        if str(to) not in localServer["pms"]:
+            sendIRCNotice(sock, nick, senderNick, "Error: {} has not created a private message with you.  Ask them to do /pm {}".format(nick, senderNick))
+            return
+
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
             bot.send_message(to, "* {}{}".format(senderNick, msg))
