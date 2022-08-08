@@ -11,6 +11,7 @@
         "sid": "3A6",
         "description": "Telegram Bridge Server",
         "network": "IRCNet",
-        "logchan": "#network"
+        "logchan": "#network",
+        "nick": "TeleServ"
     }
 }
