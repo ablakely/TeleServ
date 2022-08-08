@@ -28,7 +28,7 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 | /conn    | (none)          | Connects a telegram user to the IRC server                      |
 | /setchan | \<chan\>        | (Group Admin/Owner) Sets IRC destination channel                |
 | /me      | \<action\>      | Action command (* User slaps mIRC with a large trout)           |
-| /notice  | (nick) \<msg\>  | Send a notice to an IRC user (or channel if no nick given)      |
+| /notice  | \<msg\>         | Send a notice to an IRC user (or channel if no nick given)      |
 | /pm      | \<nick\>        | Creates a private chat with an IRC user (DM with bot only)      |
 ------------------------------------------------------------------------------------------------
 
