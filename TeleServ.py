@@ -102,7 +102,7 @@ class IsAdmin(custom_filters.SimpleCustomFilter):
 
 bot.add_custom_filter(IsAdmin())
 
-def findIRCUserFromMSG(msg, lookupUID=True):
+def findIRCUserFromMSG(msg, lookupNick=True):
     if msg.chat.type == "group":
         if str(msg.chat.id) not in localServer["chanmap"].keys(): return
 
@@ -111,10 +111,10 @@ def findIRCUserFromMSG(msg, lookupUID=True):
         if str(msg.from_user.id) in localServer["pms"]:
             to = localServer["pms"][str(msg.from_user.id)]
 
-            if lookupUID:
+            if lookupNick:
                 for uid in remoteServer["uids"]:
-                    if remoteServer["uids"][uid]["nick"] == to:
-                        to = uid
+                    if uid == to:
+                        to = remoteServer["uids"][uid]["nick"]
 
     return to
 
@@ -155,7 +155,7 @@ Any other messaged will be relayed to the IRC channel or user\."""
     if str(msg.chat.id) in localServer["chanmap"]:
         chan = "\{} on ".format(localServer["chanmap"][str(msg.chat.id)])
     else:
-        chan = "\{} on ".format(findIRCUserFromMSG(msg, lookupUID=False))
+        chan = "\{} on ".format(findIRCUserFromMSG(msg))
 
     startMsg = startMsg.format(server=conf["IRC"]["server"].replace(".", "\."), user=msg.from_user.username, chan=chan)
     
@@ -223,6 +223,11 @@ def tgSendIRCAction(msg):
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
+    if str(msg.from_user.id) not in localServer["pms"]:
+        bot.reply_to(msg, "You have not created a private message with a user")
+        return
+
+
     to = findIRCUserFromMSG(msg)
     
     tmp = msg.text.split(" ")
@@ -240,6 +245,11 @@ def tgSendIRCNotice(msg):
     if msg.from_user.username not in localServer["users"]:
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
+
+    if msg.chat.type == "private":
+        if str(msg.from_user.id) not in localServer["pms"]:
+            bot.reply_to(msg, "You have not created a private message with a user")
+            return
 
     to = findIRCUserFromMSG(msg)
 
@@ -265,8 +275,16 @@ def tgSetPM(msg):
 
     args = msg.text.split()
     if len(args) > 1:
-        bot.reply_to(msg, "I will now send your messages in this chat to {}".format(args[1]))
-        localServer["pms"][str(msg.from_user.id)] = args[1] 
+        for uid in remoteServer["uids"]:
+            if args[1] in remoteServer["uids"][uid]["nick"]:
+                bot.reply_to(msg, "I will now send your messages in this chat to {}".format(args[1]))
+                localServer["pms"][str(msg.from_user.id)] = uid
+                return
+
+        bot.reply_to(msg, "{} doesn't appear to be online.".format(args[1]))
+        if str(msg.from_user.id) in localServer["pms"]:
+            del localServer["pms"][str(msg.from_user.id)]
+
 
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
@@ -294,7 +312,7 @@ def tgSendIRCMsg(msg):
 
         to = findIRCUserFromMSG(msg)
 
-        bot.reply_to(msg, "Sending to {}".format(findIRCUserFromMSG(msg, lookupUID=False)))
+        bot.reply_to(msg, "Sending to {}".format(remoteServer["uids"][to]["nick"]))
         sendIRCPrivMsg(sock, msg.from_user.username, to, msg.text)
         localServer["lastmsg"][msg.from_user.username] = int(time.time())
 
@@ -389,7 +407,7 @@ def ircPrivMsgHandler(uid, target, msg):
     nick = uid
 
     for n in localServer["uids"]:
-        if localServer["uids"][n] == target:
+        if localServer["uids"][n] == uid:
             nick = n
 
     if nick == uid and uid in remoteServer["uids"]:
@@ -462,9 +480,9 @@ def handleSocket(rawdata, sock):
         if data[0] != ":":
             data = prevline + data
 
-        if re.search(r":(.*) :(.*)", data):
-            log("IRC RAW: {}".format(data))
+        log("IRC RAW: {}".format(data))
 
+        if re.search(r":(.*)", data):
             matches = re.search(r"CAPAB (\w+) :(.*)", data)
             if matches:
                 matches = matches.groups()
@@ -490,6 +508,15 @@ def handleSocket(rawdata, sock):
                 remoteServer["chans"][matches[1]]["modes"] = matches[3]
                 remoteServer["chans"][matches[1]]["users"] = matches[4].split(" ")
 
+                for user in matches[4].split(" "):
+                    usermatch = re.search(r"(.*?),(.*)", user)
+                    if usermatch:
+                        usermatch = usermatch.groups()
+                        useruid = usermatch[1].split(":")[0]
+
+                        if useruid in remoteServer["uids"]:
+                            remoteServer["uids"][useruid]["chans"].append(matches[1])
+
             matches = re.search(r":(.*?) UID (.*?) (\d+) (.*?) (.*?) (.*?) (.*?) (.*?) (\d+) (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
@@ -502,6 +529,7 @@ def handleSocket(rawdata, sock):
                 remoteServer["uids"][matches[1]]["ts1"] = matches[8]
                 remoteServer["uids"][matches[1]]["modes"] = matches[9]
                 remoteServer["uids"][matches[1]]["name"] = matches[10]
+                remoteServer["uids"][matches[1]]["chans"] = []
 
             matches = re.search(r":(.*?) PRIVMSG (.*?) :(.*)", data)
             if matches:
@@ -512,7 +540,7 @@ def handleSocket(rawdata, sock):
                 else:
                     ircPrivMsgHandler(matches[0], matches[1], matches[2])
 
-            matches = re.search(r":(.*?) IDLE :(.*)", data)
+            matches = re.search(r":(.*?) IDLE (.*)", data)
             if matches:
                 matches = matches.groups()
 
@@ -533,17 +561,24 @@ def handleSocket(rawdata, sock):
                     ircOut(sock, "NUM {} {} 372 :- {}".format(conf["IRC"]["sid"], matches[0], line))
                 ircOut(sock, "NUM {} {} 376 :End of Message of the Day.".format(conf["IRC"]["sid"], matches[0]))
 
-            matches = re.search(r":(.*?) NICK (.*?) :(.*)", data)
+            matches = re.search(r":(.*?) NICK (.*?) (.*)", data)
             if matches:
                 matches = matches.groups()
+                
+                oldnick = remoteServer["uids"][matches[0]]["nick"]
                 remoteServer["uids"][matches[0]]["nick"] = matches[1]
+
+                for chan in remoteServer["uids"][matches[0]]["chans"]:
+                    if chan in localServer["chanmap"]:
+                        to = localServer["chanmap"][chan]
+
+                        bot.send_message(to, "{} is now known as {}".format(oldnick, matches[1]))
 
             matches = re.search(r":(.*?) OPERTYPE :(.*)", data)
             if matches:
                 matches = matches.groups()
                 remoteServer["opers"].append(matches[0])
 
-        if re.search(r":(.*?) PING (.*)", data):
             matches = re.search(r":(.*?) PING (.*)", data)
             if matches:
                 matches = matches.groups()
@@ -553,6 +588,43 @@ def handleSocket(rawdata, sock):
                     logChannelJoined = True
                     joinIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "o")
                     rejoinTGUsers(sock)
+
+            matches = re.search(r":(.*?) PART (.*)", data)
+            if matches:
+                matches = matches.groups()
+                args = matches[1].split(" ")
+                
+                to = localServer["chanmap"][args[0]]
+
+                if len(args) > 1:
+                    bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], " ".join(args[1:]).replace(":", "")))
+                else:
+                    bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
+
+
+            matches = re.search(r":(.*?) IJOIN (.*)", data)
+            if matches:
+                matches = matches.groups()
+                args = matches[1].split(" ")
+                
+                to = localServer["chanmap"][args[0]]
+
+                bot.send_message(to, "{} has joined".format(remoteServer["uids"][matches[0]]["nick"]))
+                remoteServer["uids"][matches[0]]["chans"].append(args[0])
+
+            matches = re.search(r":(.*?) QUIT (.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                for chan in remoteServer["uids"][matches[0]]["chans"]:
+                    if chan in localServer["chanmap"]:
+                        to = localServer["chanmap"][chan]
+
+                        if matches[1]:
+                            bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
+                        else:
+                            bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
+
 
         prevline = data
 
