@@ -54,6 +54,9 @@ remoteServer["chans"] = {}
 remoteServer["uids"]  = {}
 remoteServer["opers"] = []
 
+noticeBuf = ""
+noticeBufMode = False
+
 def readCfg(file):
     f = open(file)
     ret = json.load(f)
@@ -311,9 +314,10 @@ def tgSendIRCMsg(msg):
             return
 
         to = findIRCUserFromMSG(msg)
+        toUID = findIRCUserFromMSG(msg, lookupNick=False)
 
-        bot.reply_to(msg, "Sending to {}".format(remoteServer["uids"][to]["nick"]))
-        sendIRCPrivMsg(sock, msg.from_user.username, to, msg.text)
+        bot.reply_to(msg, "Sending to {}".format(to))
+        sendIRCPrivMsg(sock, msg.from_user.username, toUID, msg.text)
         localServer["lastmsg"][msg.from_user.username] = int(time.time())
 
 
@@ -397,13 +401,10 @@ def sendIRCPrivMsg(sock, nick, chan, msg):
 def sendIRCNotice(sock, nick, chan, msg):
     global localServer
 
-    ircOut(sock, ":{} NOTICE {} :{}".format(localServer["uids"][nick], chan, msg))
+    ircOut(sock, ":{} NOTICE {} :{}".format(nick, chan, msg))
 
-def ircPrivMsgHandler(uid, target, msg):
-    global sock, remoteServer, localServer
-
-    print(target)
-
+def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
+    global sock, remoteServer, localServer, noticeBuf, noticeBufMode
     nick = uid
 
     for n in localServer["uids"]:
@@ -413,60 +414,95 @@ def ircPrivMsgHandler(uid, target, msg):
     if nick == uid and uid in remoteServer["uids"]:
         nick = remoteServer["uids"][uid]["nick"]
 
-    print("DEBUG nick = {} target = {}".format(nick, target))
+    # uids: "nick" : "uid"
+    # telegram id: "nick" : tid
+    # pm: "tid" : "uid"
+    # to = local uid
+    # uid = sender
+        
+    toNick = ""
+    for uidnick in localServer["uids"]:
+        for pm in localServer["pms"]:
+            if uid == localServer["pms"][pm]:
+                # uid is in pms[], pm contains the telegram ID
+
+                if target == localServer["uids"][uidnick]:
+                    toNick = uidnick
+
+                    if toNick in localServer["telegramids"]:
+                        print("dbug [{}] [{}]".format(localServer["telegramids"][toNick], pm))
+                        if pm == str(localServer["telegramids"][toNick]):
+                            to = str(localServer["telegramids"][toNick])
+
 
     # strip mIRC formatting
     msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)
     
-    if target not in localServer["chanmap"] and nick not in localServer["telegramids"]:
-        if target == localServer["uids"][conf["IRC"]["nick"]]:
-            if uid not in remoteServer["opers"]:
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "Access denied.")
-                return
+    if target == localServer["uids"][conf["IRC"]["nick"]]:
+        tsuid = localServer["uids"][conf["IRC"]["nick"]]
 
-            if (msg == "help" or msg == "HELP"):
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02TeleServ Help\x02 *****")
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "**** \x02End of Help\x02 *****")
-            elif (msg == "USERLIST" or msg == "userlist"):
-                sendIRCNotice(sock, conf["IRC"]["nick"], nick, "***** \x02Telegram Users\x02 *****")
-                for user in localServer["users"]:
-                    sendIRCNotice(sock, conf["IRC"]["nick"], nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
-            elif ("RAW" in msg or "raw" in msg):
-                tmp = msg.split(" ")
-                ircOut(sock, " ".join(tmp[1:]))
-    elif nick in localServer["telegramids"]:
-        to = localServer["telegramids"][nick]
+        if uid not in remoteServer["opers"]:
+            sendIRCNotice(sock, tsuid, nick, "Access denied.")
+            return
+
+        if (msg == "help" or msg == "HELP"):
+            sendIRCNotice(sock, tsuid, nick, "***** \x02TeleServ Help\x02 *****")
+            sendIRCNotice(sock, tsuid, nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
+            sendIRCNotice(sock, tsuid, nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
+            sendIRCNotice(sock, tsuid, nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
+            sendIRCNotice(sock, tsuid, nick, "**** \x02End of Help\x02 *****")
+        elif (msg == "USERLIST" or msg == "userlist"):
+            sendIRCNotice(sock, tsuid, nick, "***** \x02Telegram Users\x02 *****")
+            for user in localServer["users"]:
+                sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
+        elif ("RAW" in msg or "raw" in msg):
+            tmp = msg.split(" ")
+            ircOut(sock, " ".join(tmp[1:]))
+    elif target in localServer["uids"].values():
+        to = ""
+        senderNick = uid
 
         if uid in remoteServer["uids"]:
             senderNick = remoteServer["uids"][uid]["nick"]
         else:
-            senderNick = uid
             for n in localServer["uids"]:
                 if uid == localServer["uids"][n]:
                     senderNick = n
 
-        print("DBUG {} {}".format(nick, to))
 
-        if str(to) not in localServer["pms"]:
-            sendIRCNotice(sock, nick, senderNick, "Error: {} has not created a private message with you.  Ask them to do /pm {}".format(nick, senderNick))
+        if to == "":
+            sendIRCNotice(sock, target, nick, "Error: {} has not created a private message with you.  Ask them to do /pm {}".format(toNick, nick))
             return
 
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
             bot.send_message(to, "* {}{}".format(senderNick, msg))
         else:
-            bot.send_message(to, "<{}> {}".format(senderNick, msg))        
-    else:
+            if msgType == "PRIVMSG":
+                bot.send_message(to, "<{}> {}".format(senderNick, msg))
+            elif msgType == "NOTICE":
+                if re.search(r"\*\*\*\*\* (.*?) Help \*\*\*\*\*", msg):
+                    noticeBufMode = True
+                if re.search(r"\*\*\*\*\* End of Help \*\*\*\*\*", msg):
+                    noticeBufMode = False
+                    bot.send_message(to, noticeBuf)
+                    noticeBuf = ""
+                
+                if noticeBufMode == True:
+                    noticeBuf += "-{}- {}\n".format(senderNick, msg)
+                else:
+                    bot.send_message(to, "-{}- {}".format(senderNick, msg))        
+    elif target in localServer["chanmap"]:
         to = localServer["chanmap"][target]
 
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
             bot.send_message(to, "* {}{}".format(nick, msg))
         else:
-            bot.send_message(to, "<{}> {}".format(nick, msg))
+            if msgType == "PRIVMSG":
+                bot.send_message(to, "<{}> {}".format(nick, msg))
+            elif msgType == "NOTICE":
+                bot.send_message(to, "-{}- {}".format(nick, msg))    
 
 
 def handleSocket(rawdata, sock):
@@ -540,16 +576,25 @@ def handleSocket(rawdata, sock):
                 else:
                     ircPrivMsgHandler(matches[0], matches[1], matches[2])
 
+            matches = re.search(r":(.*?) NOTICE (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                ircPrivMsgHandler(matches[0], matches[1], matches[2], msgType="NOTICE")
+
             matches = re.search(r":(.*?) IDLE (.*)", data)
             if matches:
                 matches = matches.groups()
 
                 for k in localServer["uids"]:
                     if localServer["uids"][k] == matches[1]:
-                        then = localServer["lastmsg"][k]
-                        calc = int(time.time()) - then
+                        if k in localServer["lastmsg"]:
+                            then = localServer["lastmsg"][k]
+                            calc = int(time.time()) - then
 
-                        ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
+                            ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
+                        else:
+                            ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
 
             matches = re.search(r":(.*?) MOTD :(.*)", data)
             if matches:
@@ -594,12 +639,13 @@ def handleSocket(rawdata, sock):
                 matches = matches.groups()
                 args = matches[1].split(" ")
                 
-                to = localServer["chanmap"][args[0]]
+                if args[0] in localServer["chanmap"]:
+                    to = localServer["chanmap"][args[0]]
 
-                if len(args) > 1:
-                    bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], " ".join(args[1:]).replace(":", "")))
-                else:
-                    bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
+                    if len(args) > 1:
+                        bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], " ".join(args[1:]).replace(":", "")))
+                    else:
+                        bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
 
 
             matches = re.search(r":(.*?) IJOIN (.*)", data)
@@ -607,10 +653,11 @@ def handleSocket(rawdata, sock):
                 matches = matches.groups()
                 args = matches[1].split(" ")
                 
-                to = localServer["chanmap"][args[0]]
+                if args[0] in localServer["chanmap"]:
+                    to = localServer["chanmap"][args[0]]
 
-                bot.send_message(to, "{} has joined".format(remoteServer["uids"][matches[0]]["nick"]))
-                remoteServer["uids"][matches[0]]["chans"].append(args[0])
+                    bot.send_message(to, "{} has joined".format(remoteServer["uids"][matches[0]]["nick"]))
+                    remoteServer["uids"][matches[0]]["chans"].append(args[0])
 
             matches = re.search(r":(.*?) QUIT (.*)", data)
             if matches:
