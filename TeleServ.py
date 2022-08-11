@@ -1,9 +1,9 @@
 #!/usr/bin/python
 
-# TeleServ - Telegram to IRC(TS6) bridge server
+# TeleServ - Telegram to IRC bridge server
 #
 # Copyright (c) 2022 Aaron Blakely
-# Support: https://t.me/ephasic
+# Support: https://webchat.ephasic.org/?join=ephasic
 
 import re
 import os
@@ -187,7 +187,7 @@ def createTGUser(msg):
         joinIRCUser(sock, userIDFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
         localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
 
-        bot.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id))
+        bot.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id)))
     else:
         bot.reply_to(msg, "You are already in this IRC channel.")
 
