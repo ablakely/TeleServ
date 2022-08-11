@@ -73,18 +73,12 @@ def loadLocalServerState():
         ret = {}
         ret["uids"] = {}
         ret["chanmap"] = {}
-        ret["users"] = []
-        ret["names"] = {}
-        ret["chans"] = {}
-        ret["lastmsg"] = {}
-        ret["telegramids"] = {}
-        ret["pms"] = {}
-    
+
     return ret
 
 def writeLocalServerState():
     f = open("./bridgestates.json", "w")
-    json.dump(localServer, f)
+    json.dump(localServer, f, indent=2)
     f.close()
 
 
@@ -105,19 +99,147 @@ class IsAdmin(custom_filters.SimpleCustomFilter):
 
 bot.add_custom_filter(IsAdmin())
 
+def channelFromTGID(tgid):
+    tgid = str(tgid)
+
+    for chan in localServer["chanmap"]:
+        if tgid == localServer["chanmap"][chan]:
+            return chan
+
+    return False
+
+def userIDFromTGID(tgid):
+    tgid = str(tgid)
+
+    for uid in localServer["uids"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]):
+            return uid
+    return False
+
+def nickFromTGID(tgid):
+    tgid = str(tgid)
+
+    for uid in localServer["uids"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]):
+            return localServer["uids"][uid]["nick"]
+    return False
+
+def tgUserInChannel(tgid, chan):
+    tgid = str(tgid)
+
+    for uid in localServer["uids"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]) and chan in localServer["uids"][uid]["chans"]:
+            return True
+    return False
+
+def tgUserPMOpen(tgid):
+    tgid = str(tgid)
+
+    for uid in localServer["uids"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]) and localServer["uids"][uid]["pm"] != "":
+            return True
+    return False
+
+def setTGUserPM(tgid, uid):
+    tgid = str(tgid)
+
+    for i in localServer["uids"]:
+        if tgid == str(localServer["uids"][i]["telegramid"]):
+            localServer["uids"][i]["pm"] = uid
+
+    writeLocalServerState()
+
+def getTGUserPM(tgid):
+    tgid = str(tgid)
+
+    for uid in localServer["uids"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]):
+            return localServer["uids"][uid]["pm"]
+    return False
+
+def createTGUser(msg):
+    global localServer, sock
+    tgid = str(tgid)
+
+    if msg.chat.type != "group": return
+    if not msg.from_user.username:
+        bot.reply_to(msg, "Error: You currently don't have a username set.")
+        return False
+
+    name = msg.from_user.first_name
+    if msg.from_user.last_name:
+        name += " " + msg.from_user.last_name
+
+    if userIDFromTGID == False:
+        bot.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
+        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
+        uid = addIRCUser(sock, msg.from_user.username, msg.from_user.username, "t.me/{}".format(msg.from_user.username), "+i", name)
+
+        localServer["uids"][uid] = {}
+        localServer["uids"][uid]["telegramuser"] = msg.from_user.username
+        localServer["uids"][uid]["telegramid"]   = str(msg.from_user.id)
+        localServer["uids"][uid]["name"]         = name
+        localServer["uids"][uid]["nick"]         = msg.from_user.username
+        localServer["uids"][uid]["pm"]          = ""
+        localServer["uids"][uid]["chans"]        = []
+    
+    
+    if tgUserInChannel(msg.from_user.id, channelFromTGID(msg.chat.id)) == False:
+        joinIRCUser(sock, msg.from_user.username, channelFromTGID(msg.chat.id), "v")
+    else:
+        bot.reply_to(msg, "You are already in this IRC channel.")
+
+    writeLocalServerState()
+
+def uidFromNick(nick):
+    for uid in localServer["uids"]:
+        if nick == localServer["uids"][uid]["nick"]:
+            return uid
+
+    for uid in remoteServer["uids"]:
+        if nick == remoteServer["uids"][uid]["nick"]:
+            return uid
+
+    return False
+
+def nickFromUID(tuid):
+    if tuid in localServer["uids"]:
+        return localServer["uids"][tuid]["nick"]
+
+    if tuid in remoteServer["uids"]:
+        return remoteServer["uids"][tuid]["nick"]
+
+    return False
+
+def uidToTGID(tuid):
+    if tuid in localServer["uids"]:
+        return localServer["uids"][tuid]["telegramid"]
+    return False 
+
+def updateLastMsg(tgid):
+    for uid in localServer["uids"]:
+        if tgid == localServer["uids"][uid]["telegramid"]:
+            localServer["uids"][uid]["lastmsg"] = int(time.time())
+
+def tgidFromNick(nick):
+    for uid in localServer["uids"]:
+        if nick == localServer["uids"][uid]["nick"]:
+            return localServer["uids"][uid]["telegramid"]
+    return False
+
+def getLastMsgTime(tuid):
+    if tuid in localServer["uids"]:
+        return localServer["uids"][tuid]["lastmsg"]
+    return False
+
 def findIRCUserFromMSG(msg, lookupNick=True):
     if msg.chat.type == "group":
-        if str(msg.chat.id) not in localServer["chanmap"].keys(): return
-
-        to = localServer["chanmap"][str(msg.chat.id)]
+        to = channelFromTGID(msg.chat.id)
     elif msg.chat.type == "private":
-        if str(msg.from_user.id) in localServer["pms"]:
-            to = localServer["pms"][str(msg.from_user.id)]
+        to = userIDFromTGID(msg.from_user.id)
 
-            if lookupNick:
-                for uid in remoteServer["uids"]:
-                    if uid == to:
-                        to = remoteServer["uids"][uid]["nick"]
+        if lookupNick:
+            to = nickFromUID(to)
 
     return to
 
@@ -155,14 +277,12 @@ I am currently linking this chat to:
 Any other messaged will be relayed to the IRC channel or user\."""
 
     chan = ""
-    if str(msg.chat.id) in localServer["chanmap"]:
-        chan = "\{} on ".format(localServer["chanmap"][str(msg.chat.id)])
+    if channelFromTGID(msg.chat.id):
+        chan = "\{} on ".format(channelFromTGID(msg.chat.id))
     else:
         chan = "\{} on ".format(findIRCUserFromMSG(msg))
 
     startMsg = startMsg.format(server=conf["IRC"]["server"].replace(".", "\."), user=msg.from_user.username, chan=chan)
-    
-    localServer["telegramids"][msg.from_user.username] = msg.from_user.id 
     
     bot.reply_to(msg, startMsg, parse_mode="MarkdownV2")
 
@@ -179,57 +299,26 @@ def setChan(msg):
 
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
 
-        localServer["chanmap"][args[1]] = msg.chat.id
-        localServer["chanmap"][msg.chat.id] = args[1]
+        localServer["chanmap"][args[1]] = str(msg.chat.id)
+        writeLocalServerState()
     else:
         bot.reply_to(msg, "Usage: /setchan <IRC channel")
 
 @bot.message_handler(commands=['conn'])
 def conn(msg):
-    global sock, localServer
-
-    localServer["telegramids"][msg.from_user.username] = msg.from_user.id 
-
-    if msg.chat.type != "group": return
-
-    if not msg.from_user.username:
-        bot.reply_to(msg, "Error: You currently don't have a username set.")
-        return
-
-    name = msg.from_user.first_name
-    if msg.from_user.last_name:
-        name += " " + msg.from_user.last_name
-
-    if msg.from_user.username not in localServer["users"]:
-        bot.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
-        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
-        addIRCUser(sock, msg.from_user.username, msg.from_user.username, "t.me/{}".format(msg.from_user.username), "+i", name)
-        localServer["users"].append(msg.from_user.username)
-        localServer["chans"][msg.from_user.username] = []
-        localServer["names"][msg.from_user.username] = name
-        
-    if msg.from_user.username not in localServer["chans"]:
-        joinIRCUser(sock, msg.from_user.username, localServer["chanmap"][str(msg.chat.id)], "v")
-        localServer["chans"][msg.from_user.username].append(localServer["chanmap"][str(msg.chat.id)])
-    else:
-        bot.reply_to(msg, "You are already in this IRC channel.")
-
-    writeLocalServerState()
+    createTGUser(msg)
 
 @bot.message_handler(commands=['me'])
 def tgSendIRCAction(msg):
     global sock, localServer
 
-    localServer["telegramids"][msg.from_user.username] = msg.from_user.id
-
-    if msg.from_user.username not in localServer["users"]:
+    if userIDFromTGID(msg.from_user.id) == False:
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if str(msg.from_user.id) not in localServer["pms"]:
+    if tgUserPMOpen(msg.from_user.id):
         bot.reply_to(msg, "You have not created a private message with a user")
         return
-
 
     to = findIRCUserFromMSG(msg)
     
@@ -245,14 +334,13 @@ def tgSendIRCNotice(msg):
     global sock, localServer
 
     if msg.chat.type != "group" and msg.chat.type != "private": return
-    if msg.from_user.username not in localServer["users"]:
+    if userIDFromTGID(msg.from_user.id) == False:
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if msg.chat.type == "private":
-        if str(msg.from_user.id) not in localServer["pms"]:
-            bot.reply_to(msg, "You have not created a private message with a user")
-            return
+    if tgUserPMOpen(msg.from_user.id):
+        bot.reply_to(msg, "You have not created a private message with a user")
+        return
 
     to = findIRCUserFromMSG(msg)
 
@@ -266,27 +354,25 @@ def tgSendIRCNotice(msg):
 def tgSetPM(msg):
     global sock, localServer
 
-    localServer["telegramids"][msg.from_user.username] = msg.from_user.id
-
     if msg.chat.type != "private":
         bot.reply_to(msg, "This command is to be used when directly messaging me.")
         return
 
-    if msg.from_user.username not in localServer["users"]:
-        bot.reply_to(msg, "Error: You are not connected to IRC. Use /conn in a group I am in to connect.")
+    if userIDFromTGID(msg.from_user.id) == False:
+        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     args = msg.text.split()
     if len(args) > 1:
         for uid in remoteServer["uids"]:
-            if args[1] in remoteServer["uids"][uid]["nick"]:
+            if args[1] == remoteServer["uids"][uid]["nick"]:
                 bot.reply_to(msg, "I will now send your messages in this chat to {}".format(args[1]))
-                localServer["pms"][str(msg.from_user.id)] = uid
+                setTGUserPM(msg.from_user.id, uid)
                 return
 
         bot.reply_to(msg, "{} doesn't appear to be online.".format(args[1]))
-        if str(msg.from_user.id) in localServer["pms"]:
-            del localServer["pms"][str(msg.from_user.id)]
+        if tgUserPMOpen(msg.from_user.id) == True:
+            setTGUserPM(msg.from_user.id, "")
 
 
 
@@ -294,31 +380,33 @@ def tgSetPM(msg):
 def tgSendIRCMsg(msg):
     global sock, localServer
 
-    localServer["telegramids"][msg.from_user.username] = msg.from_user.id 
-
     if msg.chat.type == "group":
-        if str(msg.chat.id) not in localServer["chanmap"]: return
-        if msg.from_user.username not in localServer["users"]:
+        if channelFromTGID(msg.chat.id) == False: return
+
+        if userIDFromTGID(msg.from_user.id) == False:
             bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
-        sendIRCPrivMsg(sock, msg.from_user.username, localServer["chanmap"][str(msg.chat.id)], msg.text)
-        localServer["lastmsg"][msg.from_user.username] = int(time.time())
+        nick = nickFromTGID(msg.from_user.id)
+        chan = channelFromTGID(msg.chat.id)
+
+        sendIRCPrivMsg(sock, nick, chan, msg.text)
+        updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
-        if msg.from_user.username not in localServer["users"]:
-            bot.reply_to(msg, "Error: You are not connected to IRC. Use /conn in a group I am in to connect.")
+        if userIDFromTGID(msg.from_user.id) == False:
+            bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
-        
-        if str(msg.from_user.id) not in localServer["pms"]:
+
+        if tgUserPMOpen(msg.from_user.id) == False:
             bot.reply_to(msg, "You have not created a private message with a user")
             return
 
-        to = findIRCUserFromMSG(msg)
-        toUID = findIRCUserFromMSG(msg, lookupNick=False)
+        toUID = getTGUserPM(msg.from_user.id)
+        to    = nickFromUID(toUID)
 
         bot.reply_to(msg, "Sending to {}".format(to))
-        sendIRCPrivMsg(sock, msg.from_user.username, toUID, msg.text)
-        localServer["lastmsg"][msg.from_user.username] = int(time.time())
+        sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg.text)
+        updateLastMsg(msg.from_user.id)
 
 
 @bot.chat_member_handler()
@@ -347,8 +435,7 @@ def addIRCUser(sock, user, nick, host, modes, real, isService=False):
     while calc != 0:
         ap += "0"
         calc -= 1
-    
-    localServer["uids"][nick] = conf["IRC"]["sid"] + ap + lastIDStr
+
     ruid = conf["IRC"]["sid"] + ap + lastIDStr
 
     if isService == True:
@@ -360,6 +447,7 @@ def addIRCUser(sock, user, nick, host, modes, real, isService=False):
         ircOut(sock, ":{} OPERTYPE Service".format(ruid))
 
     lastID += 1
+    return ruid
 
 def joinIRCUser(sock, nick, chan, usermode):
     global remoteServer, localServer, membID
@@ -369,16 +457,25 @@ def joinIRCUser(sock, nick, chan, usermode):
         remoteServer["chans"][chan]["ts"] = time.time()
         remoteServer["chans"][chan]["modes"] = "+nt"
 
-    ircOut(sock, ":{} IJOIN {} {} {} :{}".format(localServer["uids"][nick], chan, membID, remoteServer["chans"][chan]["ts"], usermode))
+    ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uidFromNick(nick), chan, membID, remoteServer["chans"][chan]["ts"], usermode))
     membID += 1
 
 def rejoinTGUsers(sock):
     global localServer
 
-    for user in localServer["users"]:
-        addIRCUser(sock, user, user, "t.me/{}".format(user), "+i", localServer["names"][user])
-        for chan in localServer["chans"][user]:
-            joinIRCUser(sock, user, chan, "v")
+    for uid in localServer["uids"]:
+        username = localServer["uids"][uid]["telegramuser"]
+        nick     = localServer["uids"][uid]["nick"]
+        host     = "t.me/{}".format(username)
+        name     = localServer["uids"][uid]["name"]
+
+        if nick == conf["IRC"]["nick"]:
+            continue
+
+        addIRCUser(sock, username, nick, host, "+i", name)
+
+        for ichan in localServer["uids"][uid]["chans"]:
+            joinIRCUser(sock, nick, ichan, "v")
 
 def sendIRCAuth(sock):
     ircOut(sock, "CAPAB START 1205")
@@ -390,13 +487,22 @@ def sendIRCBurst(sock):
     ircOut(sock, ":{} BURST".format(conf["IRC"]["sid"]))
     ircOut(sock, ":{} SINFO version: :1.0".format(conf["IRC"]["sid"]))
     ircOut(sock, ":{} SINFO fullversion :TeleServ 1.0 {} :[{}] {}".format(conf["IRC"]["sid"], conf["IRC"]["name"], conf["IRC"]["sid"], conf["IRC"]["network"]))
-    addIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["nick"], conf["IRC"]["name"], "+i", "Telegram IRC Bridge", isService=True)
+    uid = addIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["nick"], conf["IRC"]["name"], "+i", "Telegram IRC Bridge", isService=True)
     ircOut(sock, ":{} ENDBURST".format(conf["IRC"]["sid"]))
+
+    localServer["uids"][uid] = {}
+    localServer["uids"][uid]["nick"] = conf["IRC"]["nick"]
+    localServer["uids"][uid]["name"] = "Telegram IRC Bridge"
+    localServer["uids"][uid]["telegramuser"] = ""
+    localServer["uids"][uid]["telegramid"] = 0
+    localServer["uids"][uid]["lastmsg"] = 0
+
+    writeLocalServerState()
 
 def sendIRCPrivMsg(sock, nick, chan, msg):
     global localServer
 
-    ircOut(sock, ":{} PRIVMSG {} :{}".format(localServer["uids"][nick], chan, msg))
+    ircOut(sock, ":{} PRIVMSG {} :{}".format(uidFromNick(nick), chan, msg))
 
 def sendIRCNotice(sock, nick, chan, msg):
     global localServer
@@ -405,72 +511,45 @@ def sendIRCNotice(sock, nick, chan, msg):
 
 def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
     global sock, remoteServer, localServer, noticeBuf, noticeBufMode
-    nick = uid
 
-    for n in localServer["uids"]:
-        if localServer["uids"][n] == uid:
-            nick = n
-
-    if nick == uid and uid in remoteServer["uids"]:
+    nick = nickFromUID(uid)
+    if nick == False and uid in remoteServer["uids"]:
         nick = remoteServer["uids"][uid]["nick"]
+    else:
+        nick = uid
 
-    # uids: "nick" : "uid"
-    # telegram id: "nick" : tid
-    # pm: "tid" : "uid"
-    # to = local uid
-    # uid = sender
-        
-    toNick = ""
-    for uidnick in localServer["uids"]:
-        for pm in localServer["pms"]:
-            if uid == localServer["pms"][pm]:
-                # uid is in pms[], pm contains the telegram ID
-
-                if target == localServer["uids"][uidnick]:
-                    toNick = uidnick
-
-                    if toNick in localServer["telegramids"]:
-                        print("dbug [{}] [{}]".format(localServer["telegramids"][toNick], pm))
-                        if pm == str(localServer["telegramids"][toNick]):
-                            to = str(localServer["telegramids"][toNick])
-
+    to = uidToTGID(target)
+    toNick = nickFromUID(target)
 
     # strip mIRC formatting
     msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)
     
-    if target == localServer["uids"][conf["IRC"]["nick"]]:
-        tsuid = localServer["uids"][conf["IRC"]["nick"]]
+    if target == nickFromUID(conf["IRC"]["nick"]):
+        tsuid = nickFromUID(conf["IRC"]["nick"])
 
         if uid not in remoteServer["opers"]:
             sendIRCNotice(sock, tsuid, nick, "Access denied.")
             return
 
-        if (msg == "help" or msg == "HELP"):
+        if msg == "help" or msg == "HELP":
             sendIRCNotice(sock, tsuid, nick, "***** \x02TeleServ Help\x02 *****")
             sendIRCNotice(sock, tsuid, nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
             sendIRCNotice(sock, tsuid, nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
             sendIRCNotice(sock, tsuid, nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
             sendIRCNotice(sock, tsuid, nick, "**** \x02End of Help\x02 *****")
-        elif (msg == "USERLIST" or msg == "userlist"):
+        elif msg == "USERLIST" or msg == "userlist":
             sendIRCNotice(sock, tsuid, nick, "***** \x02Telegram Users\x02 *****")
-            for user in localServer["users"]:
-                sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(user, user, " ".join(localServer["chans"][user])))
-        elif ("RAW" in msg or "raw" in msg):
+            for k in localServer["uids"]:
+                sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], user, " ".join(localServer["uids"][k]["chans"])))
+        elif "RAW" in msg or "raw" in msg:
             tmp = msg.split(" ")
             ircOut(sock, " ".join(tmp[1:]))
-    elif target in localServer["uids"].values():
-        to = ""
-        senderNick = uid
+    elif target in localServer["uids"]:
+        senderNick = nickFromUID(uid)
+        to = tgidFromNick(toNick)
+        nick = nickFromUID(nick)
 
-        if uid in remoteServer["uids"]:
-            senderNick = remoteServer["uids"][uid]["nick"]
-        else:
-            for n in localServer["uids"]:
-                if uid == localServer["uids"][n]:
-                    senderNick = n
-
-
-        if to == "":
+        if to == False or tgUserPMOpen(to) == False:
             sendIRCNotice(sock, target, nick, "Error: {} has not created a private message with you.  Ask them to do /pm {}".format(toNick, nick))
             return
 
@@ -494,6 +573,7 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
                     bot.send_message(to, "-{}- {}".format(senderNick, msg))        
     elif target in localServer["chanmap"]:
         to = localServer["chanmap"][target]
+        nick = nickFromUID(nick)
 
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
@@ -586,15 +666,15 @@ def handleSocket(rawdata, sock):
             if matches:
                 matches = matches.groups()
 
-                for k in localServer["uids"]:
-                    if localServer["uids"][k] == matches[1]:
-                        if k in localServer["lastmsg"]:
-                            then = localServer["lastmsg"][k]
-                            calc = int(time.time()) - then
+                if uidFromNick(conf["IRC"]["nick"]) == matches[1]:
+                    ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
+                    return
 
-                            ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
-                        else:
-                            ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
+                if getLastMsgTime(matches[1]) != False:
+                    calc = int(time.time()) - getLastMsgTime(matches[1])
+                    ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
+                else:
+                    ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
 
             matches = re.search(r":(.*?) MOTD :(.*)", data)
             if matches:
