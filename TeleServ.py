@@ -159,7 +159,6 @@ def getTGUserPM(tgid):
 
 def createTGUser(msg):
     global localServer, sock
-    tgid = str(tgid)
 
     if msg.chat.type != "group": return
     if not msg.from_user.username:
@@ -185,7 +184,10 @@ def createTGUser(msg):
     
     
     if tgUserInChannel(msg.from_user.id, channelFromTGID(msg.chat.id)) == False:
-        joinIRCUser(sock, msg.from_user.username, channelFromTGID(msg.chat.id), "v")
+        joinIRCUser(sock, userIDFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
+        localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
+
+        bot.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id))
     else:
         bot.reply_to(msg, "You are already in this IRC channel.")
 
@@ -496,6 +498,7 @@ def sendIRCBurst(sock):
     localServer["uids"][uid]["telegramuser"] = ""
     localServer["uids"][uid]["telegramid"] = 0
     localServer["uids"][uid]["lastmsg"] = 0
+    localServer["uids"][uid]["chans"] = []
 
     writeLocalServerState()
 
@@ -524,8 +527,8 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
     # strip mIRC formatting
     msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)
     
-    if target == nickFromUID(conf["IRC"]["nick"]):
-        tsuid = nickFromUID(conf["IRC"]["nick"])
+    if target == uidFromNick(conf["IRC"]["nick"]):
+        tsuid = uidFromNick(conf["IRC"]["nick"])
 
         if uid not in remoteServer["opers"]:
             sendIRCNotice(sock, tsuid, nick, "Access denied.")
@@ -540,7 +543,8 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
         elif msg == "USERLIST" or msg == "userlist":
             sendIRCNotice(sock, tsuid, nick, "***** \x02Telegram Users\x02 *****")
             for k in localServer["uids"]:
-                sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], user, " ".join(localServer["uids"][k]["chans"])))
+                if localServer["uids"][k]["nick"] == conf["IRC"]["nick"]: continue
+                sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], localServer["uids"][k]["nick"], " ".join(localServer["uids"][k]["chans"])))
         elif "RAW" in msg or "raw" in msg:
             tmp = msg.split(" ")
             ircOut(sock, " ".join(tmp[1:]))
