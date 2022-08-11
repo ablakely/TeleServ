@@ -8,7 +8,7 @@
         "sendkey": "IRCD LINK BLOCK: recv_key",
         "recvkey": "IRCD LINK BLOCK: send_key",
         "name": "telegram.server.org",
-        "sid": "3A6",
+        "sid": "3 CHARACTER UPPERCASE STRING",
         "description": "Telegram Bridge Server",
         "network": "IRCNet",
         "logchan": "#network",

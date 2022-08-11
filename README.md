@@ -30,6 +30,7 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 | /me      | \<action\>      | Action command (* User slaps mIRC with a large trout)           |
 | /notice  | \<msg\>         | Send a notice to an IRC user (or channel if no nick given)      |
 | /pm      | \<nick\>        | Creates a private chat with an IRC user (DM with bot only)      |
+| /nick    | (nick)          | Change your IRC nick (replies with current if nick not given)   |
 ------------------------------------------------------------------------------------------------
 
 

@@ -275,6 +275,7 @@ I am currently linking this chat to:
 *Group and DM Commands:*
  /me `\<action\>` \- Action command
  /notice `\<msg\>` \- Send a notice to a user \(or channel if no nick given\)
+ /nick `\<nickname\>` \- Change your nickname on IRC
     
 Any other messaged will be relayed to the IRC channel or user\."""
 
@@ -376,7 +377,31 @@ def tgSetPM(msg):
         if tgUserPMOpen(msg.from_user.id) == True:
             setTGUserPM(msg.from_user.id, "")
 
+@bot.message_handler(commands=['nick'])
+def tgSetNick(msg):
+    global sock, localServer
 
+    if userIDFromTGID(msg.from_user.id) == False:
+        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+        return
+
+    args = msg.text.split()
+    if len(args) > 1:
+        uid = userIDFromTGID(msg.from_user.id)
+
+        if re.match(r"[A-z_\-\[\]\\^{}|`][A-z0-9_\-\[\]\\^{}|`]*", args[1]):
+            if uidFromNick(args[1]) == False:
+                localServer["uids"][uid]["nick"] = args[1]
+                ircOut(sock, ":{} NICK {} :{}".format(uid, args[1], int(time.time())))
+                bot.reply_to(msg, "You are now known as {}".format(args[1]))
+
+                writeLocalServerState()
+            else:
+                bot.reply_to(msg, "{} is in use.".format(args[1]))
+        else:
+            bot.reply_to(msg, "Nick contains invalid characters.")
+    else:
+        bot.reply_to(msg, "Your current nick is: {}".format(nickFromTGID(msg.from_user.id)))
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
