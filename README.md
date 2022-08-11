@@ -40,13 +40,13 @@ Usage: `/msg TeleServ <command>`
 
 TeleServ will only respond to IRC operators.
 
-----------------------------------------------------------------------------------
-| Command  | Arguments | Description                                             |
-|----------|-----------|---------------------------------------------------------|
-| help     | (none)    | Sends the user a list of commands.                      |
-| userlist | (none)    | Sends the user the list of users being connected.       |
-| whois    | \<nick\>  | Sends the user information about a bridge user.         |
-----------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Command  | Arguments | Description                                                               |
+|----------|-----------|---------------------------------------------------------------------------|
+| help     | (none)                      | Sends the user a list of commands.                      |
+| userlist | (none)                      | Sends the user the list of users being connected.       |
+| whois    | \<nick or \@telegramuser\>  | Sends the user information about a bridge user.         |
+----------------------------------------------------------------------------------------------------
 
 
 Copyright &copy; 2022 Aaron Blakely
