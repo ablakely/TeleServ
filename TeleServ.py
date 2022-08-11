@@ -204,6 +204,15 @@ def uidFromNick(nick):
 
     return False
 
+def getUIDObj(uid):
+    if uid in localServer["uids"]:
+        return localServer["uids"][uid]
+
+    if uid in remoteServer["uids"]:
+        return remoteServer["uids"][uid]
+
+    return False
+
 def nickFromUID(tuid):
     if tuid in localServer["uids"]:
         return localServer["uids"][tuid]["nick"]
@@ -211,6 +220,14 @@ def nickFromUID(tuid):
     if tuid in remoteServer["uids"]:
         return remoteServer["uids"][tuid]["nick"]
 
+    return False
+
+def uidFromTGUsername(username):
+    username = username.replace("@", "")
+
+    for uid in localServer["uids"]:
+        if username == localServer["uids"][uid]["telegramuser"]:
+            return uid
     return False
 
 def uidToTGID(tuid):
@@ -319,7 +336,7 @@ def tgSendIRCAction(msg):
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if tgUserPMOpen(msg.from_user.id):
+    if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
         bot.reply_to(msg, "You have not created a private message with a user")
         return
 
@@ -341,7 +358,7 @@ def tgSendIRCNotice(msg):
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if tgUserPMOpen(msg.from_user.id):
+    if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
         bot.reply_to(msg, "You have not created a private message with a user")
         return
 
@@ -573,6 +590,24 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
         elif "RAW" in msg or "raw" in msg:
             tmp = msg.split(" ")
             ircOut(sock, " ".join(tmp[1:]))
+        elif "WHOIS" in msg or "whois" in msg:
+            tmp = msg.split(" ")
+            tuid = uidFromNick(tmp[1]) if tmp[1][0] != "@" else uidFromTGUsername(tmp[1])
+            usr = getUIDObj(tuid)
+
+            if usr != False:
+                sendIRCNotice(sock, tsuid, nick, "Information for \x02{}\x02:".format(tmp[1]))
+                sendIRCNotice(sock, tsuid, nick, "UID           : {}".format(tuid))
+                sendIRCNotice(sock, tsuid, nick, "Nick          : {}".format(usr["nick"]))
+                sendIRCNotice(sock, tsuid, nick, "Name          : {}".format(usr["name"]))
+                sendIRCNotice(sock, tsuid, nick, "PM            : {}".format(nickFromUID(usr["pm"])))
+                sendIRCNotice(sock, tsuid, nick, "Last Msg      : {}".format(time.strftime('%H:%M:%S %d-%m-%Y', time.localtime(usr["lastmsg"]))))
+                sendIRCNotice(sock, tsuid, nick, "Telegram ID   : {}".format(usr["telegramid"]))
+                sendIRCNotice(sock, tsuid, nick, "Telegram User : @{}".format(usr["telegramuser"]))
+                sendIRCNotice(sock, tsuid, nick, "Channels      : {}".format(" ".join(usr["chans"])))
+                sendIRCNotice(sock, tsuid, nick, "\x02*** End of WHOIS ***\x02")
+            else:
+                sendIRCNotice(sock, tsuid, nick, "Error: {} is not online.".format(tmp[1]))
     elif target in localServer["uids"]:
         senderNick = nickFromUID(uid)
         to = tgidFromNick(toNick)

@@ -38,11 +38,14 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 
 Usage: `/msg TeleServ <command>`
 
+TeleServ will only respond to IRC operators.
+
 ----------------------------------------------------------------------------------
 | Command  | Arguments | Description                                             |
 |----------|-----------|---------------------------------------------------------|
 | help     | (none)    | Sends the user a list of commands.                      |
 | userlist | (none)    | Sends the user the list of users being connected.       |
+| whois    | \<nick\>  | Sends the user information about a bridge user.         |
 ----------------------------------------------------------------------------------
 
 
