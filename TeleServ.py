@@ -274,7 +274,7 @@ I am currently linking this chat to:
 
 *Group and DM Commands:*
  /me `\<action\>` \- Action command
- /notice `\<msg\>` \- Send a notice to a user \(or channel if no nick given\)
+ /notice `\<msg\>` \- Send a notice
  /nick `\<nickname\>` \- Change your nickname on IRC
     
 Any other messaged will be relayed to the IRC channel or user\."""
