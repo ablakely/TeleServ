@@ -1,6 +1,8 @@
 # TeleServ
 Telegram to IRC bridge server
 
+![screenshot](https://raw.githubusercontent.com/ablakely/TeleServ/main/screenshot.png)
+
 ## What is TeleServ?
 TeleServ is a telegram bot which links to an IRC network as an IRC server, this
 allows Telegram users to appear as IRC users instead of relaying all messages
