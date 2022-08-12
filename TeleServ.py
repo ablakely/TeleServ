@@ -434,7 +434,7 @@ def tgNamesCmd(msg):
     for user in remoteServer["chans"][chan]["users"]:
         userlist.append(" {}".format(nickFromUID(user)))
 
-    bot.reply_to(msg, "Users on {}:\n{}".format(chan, " ".join(userlist)))
+    bot.reply_to(msg, "Users on {} ({} Users):\n{}".format(chan, len(userlist), " ".join(userlist)))
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
