@@ -284,6 +284,7 @@ I am currently linking this chat to:
 *Group Commands:*
  /setchan `\<channel\>` \- \[Admin\] Set destination IRC channel for group
  /conn \- Creates an IRC client with your username \({user}\)
+ /names \- List the IRC users in the channel
 
 *DM Commands:*
  /pm `\<nick\>` \- Create a private chat with an IRC user
@@ -421,6 +422,8 @@ def tgSetNick(msg):
 
 @bot.message_handler(commands=['names'])
 def tgNamesCmd(msg):
+    if msg.chat.type != "group": return
+
     if channelFromTGID(msg.chat.id) == False:
         bot.reply_to(msg, "I am not linking this group to an IRC channel.")
         return
