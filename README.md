@@ -1,5 +1,5 @@
 # TeleServ
-Telegram to IRC (TS6) bridge server
+Telegram to IRC bridge server
 
 ## What is TeleServ?
 TeleServ is a telegram bot which links to an IRC network as an IRC server, this
@@ -8,7 +8,7 @@ through a single IRC user.
 
 ## What IRCds are supported?
 TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it has been tested on:
-* InspIRCd 3.x
+* InspIRCd 3.x (Protocol Version: 1205)
 
 ## Installing & Usage
 1) Create a telegram bot \([tutorial](https://core.telegram.org/bots#6-botfather)\)
