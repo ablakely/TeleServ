@@ -9,7 +9,6 @@ import re
 import os
 from os.path import exists
 from telebot import TeleBot,types,util,custom_filters
-from pprint import pprint
 import socket
 import ssl
 import time
@@ -420,6 +419,20 @@ def tgSetNick(msg):
     else:
         bot.reply_to(msg, "Your current nick is: {}".format(nickFromTGID(msg.from_user.id)))
 
+@bot.message_handler(commands=['names'])
+def tgNamesCmd(msg):
+    if channelFromTGID(msg.chat.id) == False:
+        bot.reply_to(msg, "I am not linking this group to an IRC channel.")
+        return
+
+    chan = channelFromTGID(msg.chat.id)
+    userlist = []
+
+    for user in remoteServer["chans"][chan]["users"]:
+        userlist.append(" {}".format(nickFromUID(user)))
+
+    bot.reply_to(msg, "Users on {}:\n{}".format(chan, " ".join(userlist)))
+
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
     global sock, localServer
@@ -496,11 +509,14 @@ def addIRCUser(sock, user, nick, host, modes, real, isService=False):
 def joinIRCUser(sock, nick, chan, usermode):
     global remoteServer, localServer, membID
 
-    if chan not in remoteServer["chans"].keys():
+    if chan not in remoteServer["chans"]:
         remoteServer["chans"][chan] = {}
         remoteServer["chans"][chan]["ts"] = time.time()
         remoteServer["chans"][chan]["modes"] = "+nt"
+        remoteServer["chans"][chan]["users"] = ["{},{}:{}".format(usermode, uidFromNick(nick), membID)]
+        membID += 1
 
+    remoteServer["chans"][chan]["users"].append(uidFromNick(nick))
     ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uidFromNick(nick), chan, membID, remoteServer["chans"][chan]["ts"], usermode))
     membID += 1
 
@@ -686,13 +702,14 @@ def handleSocket(rawdata, sock):
                 remoteServer["chans"][matches[1]] = {}
                 remoteServer["chans"][matches[1]]["ts"] = matches[2]
                 remoteServer["chans"][matches[1]]["modes"] = matches[3]
-                remoteServer["chans"][matches[1]]["users"] = matches[4].split(" ")
+                remoteServer["chans"][matches[1]]["users"] = []
 
                 for user in matches[4].split(" "):
                     usermatch = re.search(r"(.*?),(.*)", user)
                     if usermatch:
                         usermatch = usermatch.groups()
                         useruid = usermatch[1].split(":")[0]
+                        remoteServer["chans"][matches[1]]["users"].append(useruid)
 
                         if useruid in remoteServer["uids"]:
                             remoteServer["uids"][useruid]["chans"].append(matches[1])
@@ -787,10 +804,12 @@ def handleSocket(rawdata, sock):
                     to = localServer["chanmap"][args[0]]
 
                     if len(args) > 1:
-                        bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], " ".join(args[1:]).replace(":", "")))
+                        bot.send_message(to, "{} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "")))
                     else:
-                        bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
+                        bot.send_message(to, "{} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
 
+                remoteServer["chans"][args[0]]["users"].remove(matches[0])
+                remoteServer["uids"][matches[0]]["chans"].remove(args[0])
 
             matches = re.search(r":(.*?) IJOIN (.*)", data)
             if matches:
@@ -800,8 +819,14 @@ def handleSocket(rawdata, sock):
                 if args[0] in localServer["chanmap"]:
                     to = localServer["chanmap"][args[0]]
 
-                    bot.send_message(to, "{} has joined".format(remoteServer["uids"][matches[0]]["nick"]))
-                    remoteServer["uids"][matches[0]]["chans"].append(args[0])
+                    bot.send_message(to, "{} ({}@{}) has joined {}".format(
+                        remoteServer["uids"][matches[0]]["nick"],
+                        remoteServer["uids"][matches[0]]["user"],
+                        remoteServer["uids"][matches[0]]["host"],
+                        args[0]))
+
+                remoteServer["uids"][matches[0]]["chans"].append(args[0])
+                remoteServer["chans"][args[0]]["users"].append(matches[0])
 
             matches = re.search(r":(.*?) QUIT (.*)", data)
             if matches:
@@ -812,9 +837,9 @@ def handleSocket(rawdata, sock):
                         to = localServer["chanmap"][chan]
 
                         if matches[1]:
-                            bot.send_message(to, "{} has left (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
+                            bot.send_message(to, "{} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
                         else:
-                            bot.send_message(to, "{} has left".format(remoteServer["uids"][matches[0]]["nick"]))
+                            bot.send_message(to, "{} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
 
 
         prevline = data
