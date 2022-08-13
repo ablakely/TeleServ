@@ -61,6 +61,11 @@ def readCfg(file):
     ret = json.load(f)
     f.close()
 
+    if "enableRAW" not in ret:
+        ret["enableRAW"] = False
+    elif ret["enableRAW"] == True:
+        print("[WARNING] The RAW command is enabled, this is not recommended for production use and should only be used by someone that knows how.")
+
     return ret
 
 def loadLocalServerState():
@@ -644,7 +649,8 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
             sendIRCNotice(sock, tsuid, nick, "***** \x02TeleServ Help\x02 *****")
             sendIRCNotice(sock, tsuid, nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
             sendIRCNotice(sock, tsuid, nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
-            sendIRCNotice(sock, tsuid, nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
+            if conf["enableRAW"] == True:
+                sendIRCNotice(sock, tsuid, nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
             sendIRCNotice(sock, tsuid, nick, "**** \x02End of Help\x02 *****")
         elif msg == "USERLIST" or msg == "userlist":
             sendIRCNotice(sock, tsuid, nick, "***** \x02Telegram Users\x02 *****")
@@ -652,8 +658,9 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
                 if localServer["uids"][k]["nick"] == conf["IRC"]["nick"]: continue
                 sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], localServer["uids"][k]["nick"], " ".join(localServer["uids"][k]["chans"])))
         elif "RAW" in msg or "raw" in msg:
-            tmp = msg.split(" ")
-            ircOut(sock, " ".join(tmp[1:]))
+            if conf["enableRAW"] == True:
+                tmp = msg.split(" ")
+                ircOut(sock, " ".join(tmp[1:]))
         elif "WHOIS" in msg or "whois" in msg:
             tmp = msg.split(" ")
             tuid = uidFromNick(tmp[1]) if tmp[1][0] != "@" else uidFromTGUsername(tmp[1])
@@ -715,8 +722,6 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
 
 def handleSocket(rawdata, sock):
     global initalBurstSent, prevline, logChannelJoined
-
-    rawdata = ":".join(rawdata.split(":"))
 
     for data in rawdata.split("\n"):
         if data == "": continue
@@ -919,10 +924,10 @@ def tgPoll():
 def main():
     global sock, conf
 
-    log("Creating telegram polling thread.")
+    print("Creating telegram polling thread.")
     threading.Thread(target=tgPoll, name='bot_infinity_polling', daemon=True).start()
 
-    log("Creating SSL connection to {}".format(conf["IRC"]["server"]))
+    print("Creating SSL connection to {}".format(conf["IRC"]["server"]))
     rawsock = socket.socket(socket.AF_INET)
     context = ssl._create_unverified_context()
     sock = context.wrap_socket(rawsock, server_hostname=conf["IRC"]["server"])
