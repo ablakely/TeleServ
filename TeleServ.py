@@ -739,8 +739,6 @@ def handleSocket(rawdata, sock):
                     if capab:
                         capab = capab.groups()
                         remoteServer["capab"][capab[0]] = capab[1]
-
-                print(remoteServer["capab"])
             else:
                 remoteServer["capab"][matches[0]] = args.split(" ")
 
