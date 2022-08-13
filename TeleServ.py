@@ -657,10 +657,9 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
             for k in localServer["uids"]:
                 if localServer["uids"][k]["nick"] == conf["IRC"]["nick"]: continue
                 sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], localServer["uids"][k]["nick"], " ".join(localServer["uids"][k]["chans"])))
-        elif "RAW" in msg or "raw" in msg:
-            if conf["enableRAW"] == True:
-                tmp = msg.split(" ")
-                ircOut(sock, " ".join(tmp[1:]))
+        elif "RAW" in msg or "raw" in msg and conf["enableRAW"] == True:
+            tmp = msg.split(" ")
+            ircOut(sock, " ".join(tmp[1:]))
         elif "WHOIS" in msg or "whois" in msg:
             tmp = msg.split(" ")
             tuid = uidFromNick(tmp[1]) if tmp[1][0] != "@" else uidFromTGUsername(tmp[1])
@@ -679,6 +678,8 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
                 sendIRCNotice(sock, tsuid, nick, "\x02*** End of WHOIS ***\x02")
             else:
                 sendIRCNotice(sock, tsuid, nick, "Error: {} is not online.".format(tmp[1]))
+        else:
+            sendIRCNotice(sock, tsuid, nick, "Invalid command. Use \x02/msg {} help\x02 for a command listing.".format(conf["IRC"]["nick"]))
     elif target in localServer["uids"]:
         senderNick = nickFromUID(uid)
         to = tgidFromNick(toNick)
