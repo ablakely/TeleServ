@@ -450,7 +450,10 @@ def tgSendIRCMsg(msg):
         nick = nickFromTGID(msg.from_user.id)
         chan = channelFromTGID(msg.chat.id)
 
-        sendIRCPrivMsg(sock, nick, chan, msg.text)
+        msgs = msg.text.split("\n")
+        for i in msgs:
+            sendIRCPrivMsg(sock, nick, chan, i)
+    
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
         if userIDFromTGID(msg.from_user.id) == False:
@@ -465,7 +468,11 @@ def tgSendIRCMsg(msg):
         to    = nickFromUID(toUID)
 
         bot.reply_to(msg, "Sending to {}".format(to))
-        sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg.text)
+
+        msgs = msg.text.split("\n")
+        for i in msgs:
+            sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, i)
+    
         updateLastMsg(msg.from_user.id)
 
 
@@ -482,6 +489,9 @@ def tgChatMember(message: types.ChatMemberUpdated):
 #
 
 def ircOut(sock, msg):
+    msg = msg.replace("\n", "")
+    msg = msg.replace("\r", "")
+
     log(msg)
     sock.write(bytes("{}\r\n".format(msg), encoding='utf8'))
 
