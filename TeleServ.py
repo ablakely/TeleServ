@@ -171,14 +171,22 @@ def createTGUser(msg):
     if userIDFromTGID == False:
         bot.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
-        uid = addIRCUser(sock, msg.from_user.username, msg.from_user.username, "t.me/{}".format(msg.from_user.username), "+i", name)
+   
+        nick = msg.from_user.username[0:int(remoteServer["capab"]["NICKMAX"])]
+        user = name.split(" ")[0][0:int(remoteServer["capab"]["IDENTMAX"])].lower()
+        name = name[0:remoteServer["capab"]["MAXREAL"]]
+        host = "t.me/{}".format(msg.from_user.username)[0:remoteServer["capab"]["MAXHOST"]]
+
+        uid = addIRCUser(sock, user, nick, host, "+i", name)
 
         localServer["uids"][uid] = {}
         localServer["uids"][uid]["telegramuser"] = msg.from_user.username
         localServer["uids"][uid]["telegramid"]   = str(msg.from_user.id)
         localServer["uids"][uid]["name"]         = name
-        localServer["uids"][uid]["nick"]         = msg.from_user.username
-        localServer["uids"][uid]["pm"]          = ""
+        localServer["uids"][uid]["nick"]         = nick
+        localServer["uids"][uid]["user"]         = user
+        localServer["uids"][uid]["host"]         = host
+        localServer["uids"][uid]["pm"]           = ""
         localServer["uids"][uid]["chans"]        = []
     
     
@@ -406,6 +414,10 @@ def tgSetNick(msg):
     if len(args) > 1:
         uid = userIDFromTGID(msg.from_user.id)
 
+        if len(args[1]) > int(remoteServer["capab"]["NICKMAX"]):
+            bot.reply_to(msg, "Error: Nicknames cannot be longer than {} characters.".format(remoteServer["capab"]["NICKMAX"]))
+            return
+
         if re.match(r"[A-z_\-\[\]\\^{}|`][A-z0-9_\-\[\]\\^{}|`]*", args[1]):
             if uidFromNick(args[1]) == False:
                 localServer["uids"][uid]["nick"] = args[1]
@@ -492,8 +504,24 @@ def ircOut(sock, msg):
     msg = msg.replace("\n", "")
     msg = msg.replace("\r", "")
 
-    log(msg)
-    sock.write(bytes("{}\r\n".format(msg), encoding='utf8'))
+    maxlen = int(remoteServer["capab"]["MAXLINE"])-55 if "MAXLINE" in remoteServer["capab"] else 457
+
+    if len(msg) > maxlen:
+        cmdSearch = re.search(":(.*?) (.*?) (.*?) :(.*)", msg)
+        if cmdSearch:
+            matches = cmdSearch.groups()
+
+            uid = matches[0]
+            cmd = matches[1]
+            target = matches[2]
+            buf = matches[3]
+
+            while buf != "":
+                log(buf[0:maxlen])
+                sock.write(bytes(":{} {} {} :{}\r\n".format(uid, cmd, target, buf[0:maxlen]), encoding='utf8'))
+                buf = buf.replace(buf[0:maxlen], "", 1)
+    else:
+        sock.write(bytes("{}\r\n".format(msg[0:maxlen]), encoding='utf8'))
 
 def addIRCUser(sock, user, nick, host, modes, real, isService=False):
     global lastID, localServer
@@ -501,6 +529,11 @@ def addIRCUser(sock, user, nick, host, modes, real, isService=False):
     lastIDStr = str(lastID)
     calc = 6 - len(lastIDStr)
     ap = ""
+
+    nick = nick[0:int(remoteServer["capab"]["NICKMAX"])]
+    user = user[0:int(remoteServer["capab"]["IDENTMAX"])]
+    real = real[0:int(remoteServer["capab"]["MAXREAL"])]
+    host = host[0:int(remoteServer["capab"]["MAXHOST"])]
 
     while calc != 0:
         ap += "0"
@@ -537,9 +570,9 @@ def rejoinTGUsers(sock):
     global localServer
 
     for uid in localServer["uids"]:
-        username = localServer["uids"][uid]["telegramuser"]
+        username = localServer["uids"][uid]["name"].split(" ")[0][0:int(remoteServer["capab"]["IDENTMAX"])].lower()
         nick     = localServer["uids"][uid]["nick"]
-        host     = "t.me/{}".format(username)
+        host     = "t.me/{}".format(localServer["uids"][uid]["telegramuser"])[0:int(remoteServer["capab"]["MAXHOST"])]
         name     = localServer["uids"][uid]["name"]
 
         if nick == conf["IRC"]["nick"]:
@@ -686,17 +719,39 @@ def handleSocket(rawdata, sock):
     for data in rawdata.split("\n"):
         if data == "": continue
 
+        capabSearch = re.search(r"^CAPAB (.*?) (.*)$", data)
+        if capabSearch:
+            matches = capabSearch.groups()
+            args = matches[1]
+
+            if args[0] == ":":
+                args = args.replace(":", "", 1)
+
+            if matches[0] == "START":
+                if int(args) < 1205:
+                    print("Error: InspIRCd linking protocol version {} is not supported.".format(args))
+                    exit()
+
+                remoteServer["capab"]["version"] = args
+            elif matches[0] == "CAPABILITIES":
+                for capability in args.split(" "):
+                    capab = re.search(r"(.*?)=(.*)", capability)
+                    if capab:
+                        capab = capab.groups()
+                        remoteServer["capab"][capab[0]] = capab[1]
+
+                print(remoteServer["capab"])
+            else:
+                remoteServer["capab"][matches[0]] = args.split(" ")
+
+            continue
+
         if data[0] != ":":
-            data = prevline + data
+            data = prevline + data +"\n"
 
         log("IRC RAW: {}".format(data))
 
         if re.search(r":(.*)", data):
-            matches = re.search(r"CAPAB (\w+) :(.*)", data)
-            if matches:
-                matches = matches.groups()
-                remoteServer["capab"][matches[0]] = matches[1].split(" ")
-
             matches = re.search(r"SERVER (.*?) (.*?) 0 (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
