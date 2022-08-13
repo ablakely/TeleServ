@@ -517,10 +517,12 @@ def ircOut(sock, msg):
             buf = matches[3]
 
             while buf != "":
-                log(buf[0:maxlen])
-                sock.write(bytes(":{} {} {} :{}\r\n".format(uid, cmd, target, buf[0:maxlen]), encoding='utf8'))
+                out = ":{} {} {} :{}\r\n".format(uid, cmd, target, buf[0:maxlen])
+                log(out)
+                sock.write(bytes(out, encoding='utf8'))
                 buf = buf.replace(buf[0:maxlen], "", 1)
     else:
+        log(msg[0:maxlen])
         sock.write(bytes("{}\r\n".format(msg[0:maxlen]), encoding='utf8'))
 
 def addIRCUser(sock, user, nick, host, modes, real, isService=False):
