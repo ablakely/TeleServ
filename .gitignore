@@ -131,4 +131,4 @@ bridgestates.json
 conf.json
 
 lib/__pycache__
-.vscode/*
+.vscode/
