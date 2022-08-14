@@ -804,6 +804,7 @@ def handleSocket(rawdata, sock):
                     if usermatch:
                         usermatch = usermatch.groups()
                         useruid = usermatch[1].split(":")[0]
+                        print(useruid)
                         remoteServer["chans"][matches[1]]["users"].append(useruid)
 
                         if useruid in remoteServer["uids"]:
@@ -869,11 +870,15 @@ def handleSocket(rawdata, sock):
                 oldnick = remoteServer["uids"][matches[0]]["nick"]
                 remoteServer["uids"][matches[0]]["nick"] = matches[1]
 
+                sent = []
+
                 for chan in remoteServer["uids"][matches[0]]["chans"]:
                     if chan in localServer["chanmap"]:
                         to = localServer["chanmap"][chan]
 
-                        bot.send_message(to, "{} is now known as {}".format(oldnick, matches[1]))
+                        if to not in sent:
+                            bot.send_message(to, "{} is now known as {}".format(oldnick, matches[1]))
+                            sent.append(to)
 
             matches = re.search(r":(.*?) OPERTYPE :(.*)", data)
             if matches:
@@ -935,6 +940,9 @@ def handleSocket(rawdata, sock):
                             bot.send_message(to, "{} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
                         else:
                             bot.send_message(to, "{} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
+                    
+                    remoteServer["uids"][matches[0]]["chans"].remove(chan)
+                    remoteServer["chans"][chan]["users"].remove(matches[0])
 
 
         prevline = data
@@ -960,7 +968,7 @@ def main():
 
         print("")
         while True:
-            data = sock.recv().decode()
+            data = sock.recv().decode("utf-8", "ignore")
             if not data: break
 
             handleSocket(data, sock)
