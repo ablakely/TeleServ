@@ -2,6 +2,14 @@
     "API_KEY": "TELEGRAM API KEY",
     "DEBUG": false,
 
+    "PASTEBIN": {
+        "API_KEY": "PASTEBIN.COM API KEY",
+        "Username": "PASTEBIN.COM USERNAME",
+        "Password": "PASTEBIN.COM PASSWORD",
+        "pastebinLongMessages": false,
+        "messageLength": 1000
+    },
+
     "IRC": {
         "server": "irc.server.org",
         "port": 7005,

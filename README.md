@@ -52,6 +52,13 @@ TeleServ will only respond to IRC operators.
 ----------------------------------------------------------------------------------------------------
 
 
+## Pastebin
+
+TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
+flooding on IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
+will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
+your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.
+
 Copyright &copy; 2022 Aaron Blakely
 
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)

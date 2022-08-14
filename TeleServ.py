@@ -9,6 +9,7 @@ import re
 import os
 from os.path import exists
 from telebot import TeleBot,types,util,custom_filters
+from lib.TSPastebinAPI import TSPastebinAPI
 import socket
 import ssl
 import time
@@ -87,6 +88,11 @@ def writeLocalServerState():
 
 
 conf = readCfg("./conf.json")
+
+if "PASTEBIN" in conf:
+    pastebin = TSPastebinAPI(conf["PASTEBIN"])
+else:
+    pastebin = TSPastebinAPI({"pastebinLongMessages": False})
 
 # This dict stores our Telegram config as well as client UID information,
 # it will be saved to disk on SIGTERM or when a new user client is created.
@@ -467,9 +473,23 @@ def tgSendIRCMsg(msg):
         nick = nickFromTGID(msg.from_user.id)
         chan = channelFromTGID(msg.chat.id)
 
-        msgs = msg.text.split("\n")
-        for i in msgs:
-            sendIRCPrivMsg(sock, nick, chan, i)
+
+        if pastebin.enabled() == True:
+            if len(msg.text) >= pastebin.msglen():
+                paste = pastebin.paste(msg.text)
+
+                log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
+                sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
+                sendIRCPrivMsg(sock, nick, chan, paste)
+                bot.reply_to(msg, "Created paste {} and sent it to IRC".format(paste))
+            else:
+                msgs = msg.text.split("\n")
+                for i in msgs:
+                    sendIRCPrivMsg(sock, nick, chan, i)
+        else:
+            msgs = msg.text.split("\n")
+            for i in msgs:
+                sendIRCPrivMsg(sock, nick, chan, i)
     
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
