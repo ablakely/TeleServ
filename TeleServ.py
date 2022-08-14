@@ -482,7 +482,7 @@ def tgSendIRCMsg(msg):
                 log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msg.text[0:150].replace("\n", ""), paste))
-                bot.reply_to(msg, "Created paste {} and sent it to IRC".format(paste))
+                bot.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
             else:
                 msgs = msg.text.split("\n")
                 for i in msgs:

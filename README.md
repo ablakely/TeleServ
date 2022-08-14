@@ -22,10 +22,10 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 ### Pastebin
 
 TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
-flooding on IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
+flooding an IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
 will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
-your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.
-
+your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
+with a character count grater than or equal to `messageLength` will be posted to pastebin.
 
 ## Commands
 
