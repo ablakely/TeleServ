@@ -1,7 +1,7 @@
 # TeleServ
 Telegram to IRC bridge server
 
-![screenshot](https://raw.githubusercontent.com/ablakely/TeleServ/main/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot.png)
 
 ## What is TeleServ?
 TeleServ is a telegram bot which links to an IRC network as an IRC server, this
@@ -21,11 +21,13 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 
 ### Pastebin
 
+![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
+
 TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
 flooding an IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
 will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
 your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
-with a character count grater than or equal to `messageLength` will be posted to pastebin.
+with a character count grater than or equal to `messageLength` will be posted to pastebin and a short preview.
 
 ## Commands
 
