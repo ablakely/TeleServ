@@ -9,7 +9,7 @@ allows Telegram users to appear as IRC users instead of relaying all messages
 through a single IRC user.
 
 ## What IRCds are supported?
-TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it has been tested on:
+TeleServ should work with any IRCd that uses TS6 for it's linking protocol, it has been tested on:
 * InspIRCd 3.x (Protocol Version: 1205)
 
 ## Installing & Usage
@@ -24,10 +24,10 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 ![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
 
 TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
-flooding an IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
+flooding an IRC channel, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
 will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
 your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
-with a character count grater than or equal to `messageLength` will be posted to pastebin and a short preview.
+with a character count greater than or equal to `messageLength` will be posted to pastebin and a short preview.
 
 ## Commands
 
