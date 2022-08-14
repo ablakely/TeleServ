@@ -804,7 +804,6 @@ def handleSocket(rawdata, sock):
                     if usermatch:
                         usermatch = usermatch.groups()
                         useruid = usermatch[1].split(":")[0]
-                        print(useruid)
                         remoteServer["chans"][matches[1]]["users"].append(useruid)
 
                         if useruid in remoteServer["uids"]:
