@@ -476,11 +476,12 @@ def tgSendIRCMsg(msg):
 
         if pastebin.enabled() == True:
             if len(msg.text) >= pastebin.msglen():
-                paste = pastebin.paste(msg.text)
+                header = "# Automatically posted for {} in {} by TeleServ\n\n".format(nick, chan)
+                paste = pastebin.paste(header + msg.text)
 
                 log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
-                sendIRCPrivMsg(sock, nick, chan, paste)
+                sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msg.text[0:150].replace("\n", ""), paste))
                 bot.reply_to(msg, "Created paste {} and sent it to IRC".format(paste))
             else:
                 msgs = msg.text.split("\n")
