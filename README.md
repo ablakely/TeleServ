@@ -19,6 +19,13 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocl, it ha
 3) `pip install pyTelegramBotAPI`
 4) `python TeleServ.py`
 
+### Pastebin
+
+TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
+flooding on IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
+will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
+your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.
+
 
 ## Commands
 
@@ -52,13 +59,6 @@ TeleServ will only respond to IRC operators.
 ----------------------------------------------------------------------------------------------------
 
 
-## Pastebin
-
-TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
-flooding on IRC channels, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
-will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
-your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.
-
-Copyright &copy; 2022 Aaron Blakely
+_Copyright &copy; 2022 Aaron Blakely_
 
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)
