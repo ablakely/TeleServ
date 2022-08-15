@@ -391,7 +391,7 @@ def tgSendIRCNotice(msg):
 
     args = msg.text.split()
     if len(args) > 1:
-        sendIRCNotice(sock, msg.from_user.username, to, " ".join(args[1:]))
+        sendIRCNotice(sock, userIDFromTGID(msg.from_user.id), to, " ".join(args[1:]))
     else:
         bot.reply_to(msg, "Usage: /notice <msg> to send a notice to channel or /notice <who> <msg> to send a notice to a user.")
 
