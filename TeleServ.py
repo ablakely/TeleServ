@@ -10,6 +10,7 @@ import os
 from os.path import exists
 from telebot import TeleBot,types,util,custom_filters
 from lib.TSPastebinAPI import TSPastebinAPI
+from lib.TSImgurAPI import TSImgurAPI
 import socket
 import ssl
 import time
@@ -93,6 +94,11 @@ if "PASTEBIN" in conf:
     pastebin = TSPastebinAPI(conf["PASTEBIN"])
 else:
     pastebin = TSPastebinAPI({"pastebinLongMessages": False})
+
+if "IMGUR" in conf:
+    imgur = TSImgurAPI(conf["IMGUR"])
+else:
+    imgur = TSImgurAPI({"enabled": False})
 
 # This dict stores our Telegram config as well as client UID information,
 # it will be saved to disk on SIGTERM or when a new user client is created.
@@ -484,13 +490,9 @@ def tgSendIRCMsg(msg):
                 sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msg.text[0:150].replace("\n", ""), paste))
                 bot.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
             else:
-                msgs = msg.text.split("\n")
-                for i in msgs:
-                    sendIRCPrivMsg(sock, nick, chan, i)
+                sendIRCPrivMsg(sock, nick, chan, msg)
         else:
-            msgs = msg.text.split("\n")
-            for i in msgs:
-                sendIRCPrivMsg(sock, nick, chan, i)
+            sendIRCPrivMsg(sock, nick, chan, msg)
     
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
@@ -506,10 +508,7 @@ def tgSendIRCMsg(msg):
         to    = nickFromUID(toUID)
 
         bot.reply_to(msg, "Sending to {}".format(to))
-
-        msgs = msg.text.split("\n")
-        for i in msgs:
-            sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, i)
+        sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg)
     
         updateLastMsg(msg.from_user.id)
 
@@ -521,6 +520,48 @@ def tgChatMember(message: types.ChatMemberUpdated):
 
     if new.status == 'member':
         bot.send_message(message.chat.id, "Hello {name}!  This is an IRC relay group chat, you will now be connected to as {user}".format(name=new.user.first_name, user=new.user.username))
+
+
+@bot.message_handler(content_types=['photo'])
+def photo(msg):
+    global sock
+
+    if userIDFromTGID(msg.from_user.id) == False:
+            bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+            return
+
+    fileID = msg.photo[-1].file_id
+    file_info = bot.get_file(fileID)
+    downloaded_file = bot.download_file(file_info.file_path)
+
+    with open(f"{fileID}.jpg", 'wb') as new_file:
+        new_file.write(downloaded_file)
+
+        nick = nickFromTGID(msg.from_user.id)
+        src = channelFromTGID(msg.chat.id)
+        img = imgur.uploadTG(f"{fileID}.jpg", nick, src)
+
+        if msg.caption:
+            mesg = "Sent a photo {} with caption: {}".format(img["link"], msg.caption.replace("\n", " "))
+        else:
+            mesg = "Sent a photo: {}".format(img["link"])
+
+        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(img["link"], msg.from_user.username, msg.chat.id))
+
+        if msg.chat.type == "group":
+            chan = channelFromTGID(msg.chat.id)
+
+            sendIRCPrivMsg(sock, nick, chan, mesg)
+
+        elif msg.chat.type == "private":
+            if tgUserPMOpen(msg.from_user.id) == False:
+                bot.reply_to(msg, "You have not created a private message with a user")
+                return
+
+            toUID = getTGUserPM(msg.from_user.id)
+            sendIRCPrivMsg(sock, nick, toUID, mesg)
+
+    os.remove(f"{fileID}.jpg")
 
 #
 # Handle our connection to the IRC Server
@@ -637,7 +678,8 @@ def sendIRCBurst(sock):
 def sendIRCPrivMsg(sock, nick, chan, msg):
     global localServer
 
-    ircOut(sock, ":{} PRIVMSG {} :{}".format(uidFromNick(nick), chan, msg))
+    for i in msg.split("\n"):
+        ircOut(sock, ":{} PRIVMSG {} :{}".format(uidFromNick(nick), chan, i))
 
 def sendIRCNotice(sock, nick, chan, msg):
     global localServer

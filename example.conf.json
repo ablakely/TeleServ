@@ -2,6 +2,12 @@
     "API_KEY": "TELEGRAM API KEY",
     "DEBUG": false,
 
+    "IMGUR": {
+        "API_ID": "IMGUR API ID",
+        "API_SECRET": "IMGUR API SECRET",
+        "enabled": false
+    },
+
     "PASTEBIN": {
         "API_KEY": "PASTEBIN.COM API KEY",
         "Username": "PASTEBIN.COM USERNAME",

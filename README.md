@@ -17,7 +17,7 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocol, it h
 1) Create a telegram bot \([tutorial](https://core.telegram.org/bots#6-botfather)\)
 1) Create a link block on the IRC server you'll be linking to.
 2) Edit `example.conf.json` and rename to `conf.json`
-3) `pip install pyTelegramBotAPI`
+3) `pip install pyTelegramBotAPI imgurpython`
 4) `python TeleServ.py`
 
 ## Commands
@@ -92,6 +92,18 @@ as non [PRO](https://pastebin.com/pro) accounts are only allowed to have 10 unli
 
 ---
 
+## Imgur
+
+![screenshot3](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot3.png)
+
+TeleServ has the ability to upload images sent to Telegram chats it is in to Imgur and forward the link to to
+uploaded image to IRC.  To set this up you will need to:
+
+1) Create an Imgur [API key](https://api.imgur.com/oauth2/addclient) with the "Anonymous usage" type
+2) Modify your conf.json with the ID and Secret keys that you generated.
+3) Make sure to set `enabled` to `true` in IMGUR section of configuration.
+
+---
 _Copyright &copy; 2022 Aaron Blakely_
 
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)
