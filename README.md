@@ -20,29 +20,9 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocol, it h
 3) `pip install pyTelegramBotAPI`
 4) `python TeleServ.py`
 
-### Pastebin
-
-![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
-
-TeleServ has the ability to automatically post long Telegram messages to pastebin to prevent
-flooding an IRC channel, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
-will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
-your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
-with a character count greater than or equal to `messageLength` will be posted to pastebin and a short preview.
-
-#### Privacy Setting
-
-| Value | Setting                                            |
-|-------|----------------------------------------------------|
-| 0     | Public                                             |
-| 1     | Unlisted                                           |
-| 2     | Private (Only acccount bot is using can view post) |
-
-
-Due to limitations in the Pastebin API for free accounts, it is recommended to use the public setting
-as non "PRO" accounts are only allowed to have 10 unlisted posts on the account.
-
 ## Commands
+
+TeleServ provides commands for both Telegram users and IRC operators.
 
 ### Telegram
 
@@ -70,8 +50,45 @@ TeleServ will only respond to IRC operators.
 | help     | (none)                      | Sends the user a list of commands.                      |
 | userlist | (none)                      | Sends the user the list of users being connected.       |
 | whois    | \<nick or \@telegramuser\>  | Sends the user information about a bridge user.         |
--
 
+---
+
+## Pastebin
+
+![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
+
+TeleServ has the ability to automatically post long Telegram messages to pastebin to prevent
+flooding an IRC channel, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
+will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
+your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
+with a character count greater than or equal to `messageLength` will be posted to pastebin and a short preview.
+
+### Expiration Time
+
+Pastebin does not support any other value for post expiration than the ones listed here.
+
+| Value | Expiration Setting |
+|-------|--------------------|
+| N     | Never              |
+| 10M   | 10 Minutes         |
+| 1H    | 1 Hour             |
+| 1D    | 1 Day              |
+| 1W    | 1 Week             |
+| 2W    | 2 Weeks            |
+| 1M    | 1 Month            |
+| 6M    | 6 Months           |
+| 1Y    | 1 Year             |
+
+### Privacy
+
+Due to limitations in the Pastebin API for free accounts, it is recommended to use the public setting
+as non [PRO](https://pastebin.com/pro) accounts are only allowed to have 10 unlisted posts on the account.
+
+| Value | Privacy Setting                                    |
+|-------|----------------------------------------------------|
+| 0     | Public                                             |
+| 1     | Unlisted                                           |
+| 2     | Private (Only acccount bot is using can view post) |
 
 _Copyright &copy; 2022 Aaron Blakely_
 

@@ -7,7 +7,9 @@
         "Username": "PASTEBIN.COM USERNAME",
         "Password": "PASTEBIN.COM PASSWORD",
         "pastebinLongMessages": false,
-        "messageLength": 1000
+        "messageLength": 500,
+        "privacy": "0",
+        "expireTime": "1W"
     },
 
     "IRC": {

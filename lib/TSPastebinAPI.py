@@ -28,6 +28,8 @@ class TSPastebinAPI():
         if "privacy" not in opts:
             opts["privacy"] = "0"
 
+        if "expireTime" not in opts:
+            opts["expireTime"] = "1W"
 
         # Check if our given credentials are correct
         login = requests.post("https://pastebin.com/api/api_login.php", data={
@@ -41,7 +43,8 @@ class TSPastebinAPI():
             self.USERNAME = opts["Username"]
             self.PASSWORD = opts["Password"]
             self.MSGLEN   = opts["messageLength"]
-            self.PRIVACY  = opts["privacy"]
+            self.PRIVACY  = str(opts["privacy"])
+            self.EXPIRES  = opts["expireTime"]
             self.TOKEN    = login.text
             self.ENABLED  = True
         else:
@@ -56,7 +59,7 @@ class TSPastebinAPI():
             "api_dev_key": self.API_KEY,
             "api_paste_code": content,
             "api_paste_name": time.strftime("%H:%M:%S %d-%m-%Y", time.localtime()),
-            "api_paste_expire_date": "1M",
+            "api_paste_expire_date": self.EXPIRES,
             "api_user_key": self.TOKEN,
             "api_paste_format": "text",
             "api_paste_private": self.PRIVACY
@@ -65,7 +68,7 @@ class TSPastebinAPI():
         if "https://pastebin.com" in paste.text:
             return paste.text
         else:
-            raise ValueError(paste.text)
+            raise ValueError(paste.text.strip())
 
     def enabled(self):
         return self.ENABLED
