@@ -24,17 +24,29 @@ TeleServ should work with any IRCd that uses TS6 for it's linking protocol, it h
 
 ![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
 
-TeleServ has the ability to automatically post long Telegram messages to an unlisted pastebin to prevent
+TeleServ has the ability to automatically post long Telegram messages to pastebin to prevent
 flooding an IRC channel, it will not do this for private messages between IRC and Telegram users. To enable this functionality you
 will need to create a [Pastebin Account](https://pastebin.com/signup) for your TeleServ instance and provide the needed details in
 your `conf.json` from the [API page](https://pastebin.com/doc_api).  Make sure to set `pastebinLongMessages` to `true`.  Messages
 with a character count greater than or equal to `messageLength` will be posted to pastebin and a short preview.
 
+#### Privacy Setting
+
+| Value | Setting                                            |
+|-------|----------------------------------------------------|
+| 0     | Public                                             |
+| 1     | Unlisted                                           |
+| 2     | Private (Only acccount bot is using can view post) |
+
+
+Due to limitations in the Pastebin API for free accounts, it is recommended to use the public setting
+as non "PRO" accounts are only allowed to have 10 unlisted posts on the account.
+
 ## Commands
 
 ### Telegram
 
------------------------------------------------------------------------------------------------
+
 | Command  | Arguments       | Description                                                     |
 |----------|-----------------|-----------------------------------------------------------------|
 | /conn    | (none)          | Connects a telegram user to the IRC server                      |
@@ -44,7 +56,7 @@ with a character count greater than or equal to `messageLength` will be posted t
 | /pm      | \<nick\>        | Creates a private chat with an IRC user (DM with bot only)      |
 | /nick    | (nick)          | Change your IRC nick (replies with current if nick not given)   |
 | /names   | (none)          | List the users in the IRC channel                               |
-------------------------------------------------------------------------------------------------
+
 
 
 ### IRC
@@ -53,13 +65,12 @@ Usage: `/msg TeleServ <command>`
 
 TeleServ will only respond to IRC operators.
 
----------------------------------------------------------------------------------------------------
 | Command  | Arguments | Description                                                               |
 |----------|-----------|---------------------------------------------------------------------------|
 | help     | (none)                      | Sends the user a list of commands.                      |
 | userlist | (none)                      | Sends the user the list of users being connected.       |
 | whois    | \<nick or \@telegramuser\>  | Sends the user information about a bridge user.         |
-----------------------------------------------------------------------------------------------------
+-
 
 
 _Copyright &copy; 2022 Aaron Blakely_

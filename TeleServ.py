@@ -443,7 +443,7 @@ def tgSetNick(msg):
     else:
         bot.reply_to(msg, "Your current nick is: {}".format(nickFromTGID(msg.from_user.id)))
 
-@bot.message_handler(commands=['names'])
+@bot.message_handler(commands=['names','users'])
 def tgNamesCmd(msg):
     if msg.chat.type != "group": return
 

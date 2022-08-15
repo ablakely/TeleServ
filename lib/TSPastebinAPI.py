@@ -25,6 +25,9 @@ class TSPastebinAPI():
         if "messageLength" not in opts:
             raise ValueError("Config option: Pastebin message length is not defined.")
 
+        if "privacy" not in opts:
+            opts["privacy"] = "0"
+
 
         # Check if our given credentials are correct
         login = requests.post("https://pastebin.com/api/api_login.php", data={
@@ -38,6 +41,7 @@ class TSPastebinAPI():
             self.USERNAME = opts["Username"]
             self.PASSWORD = opts["Password"]
             self.MSGLEN   = opts["messageLength"]
+            self.PRIVACY  = opts["privacy"]
             self.TOKEN    = login.text
             self.ENABLED  = True
         else:
@@ -55,13 +59,13 @@ class TSPastebinAPI():
             "api_paste_expire_date": "1M",
             "api_user_key": self.TOKEN,
             "api_paste_format": "text",
-            "api_paste_private": "1"
+            "api_paste_private": self.PRIVACY
         })
 
         if "https://pastebin.com" in paste.text:
             return paste.text
         else:
-            return False
+            raise ValueError(paste.text)
 
     def enabled(self):
         return self.ENABLED
