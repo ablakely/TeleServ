@@ -490,9 +490,9 @@ def tgSendIRCMsg(msg):
                 sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msg.text[0:150].replace("\n", ""), paste))
                 bot.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
             else:
-                sendIRCPrivMsg(sock, nick, chan, msg)
+                sendIRCPrivMsg(sock, nick, chan, msg.text)
         else:
-            sendIRCPrivMsg(sock, nick, chan, msg)
+            sendIRCPrivMsg(sock, nick, chan, msg.text)
     
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
