@@ -90,6 +90,8 @@ as non [PRO](https://pastebin.com/pro) accounts are only allowed to have 10 unli
 | 1     | Unlisted                                           |
 | 2     | Private (Only acccount bot is using can view post) |
 
+---
+
 _Copyright &copy; 2022 Aaron Blakely_
 
 Support for this software is available on [IRC](https://webchat.ephasic.org/?join=ephasic) or [Telegram](https://t.me/+8NN0N6ez_B5iMzBh)
