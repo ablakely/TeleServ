@@ -74,8 +74,11 @@ class TSImgurAPI():
                     for path in self.uploadQueue[user]["imgs"]:
                         imgdata.append(self.CLIENT.upload_from_path(f"/tmp/{path}", anon=False))
 
+                    tmp = user.split(":")
+                    forStr = f"{tmp[0]} in {tmp[1]}"
+
                     config = {
-                        "title": "Uploaded by TeleServ for {} at {}".format(user, time.strftime("%I:%M %p on %d-%m-%Y", time.localtime())),
+                        "title": "Uploaded by TeleServ for {} at {}".format(forStr, time.strftime("%I:%M %p on %d-%m-%Y", time.localtime())),
                         "description": self.uploadQueue[user]["desc"],
                         "privacy": "hidden"
                     }
@@ -115,8 +118,10 @@ class TSImgurAPI():
 
         if source != False:
             desc = caption + "\n\nUploaded for {} in {} by TeleServ".format(username, source)
+            username = f"{username}:{source}"
         else:
             desc = caption + "\n\nUploaded for {} by TeleServ".format(username)
+            username = f"{username}:PM"
 
         if username not in self.uploadQueue:
             self.uploadQueue[username] = {}
