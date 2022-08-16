@@ -496,7 +496,7 @@ def tgChatMember(message: types.ChatMemberUpdated):
 def photo(msg):
     global sock
 
-    print("image handler called at {}".format(time.time()))
+    log("image handler called at {}".format(time.time()))
 
     if userIDFromTGID(msg.from_user.id) == False:
             bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
@@ -690,6 +690,11 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
 
     to = uidToTGID(target)
     toNick = nickFromUID(target)
+
+    # Replace nick for IRC user with telegram handle to mention them in groups
+    for userid in localServer["uids"]:
+        if localServer["uids"][userid]["nick"] in msg:
+            msg = msg.replace(localServer["uids"][userid]["nick"], f"@{localServer['uids'][userid]['telegramuser']}")
 
     # strip mIRC formatting
     msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)
@@ -904,12 +909,41 @@ def handleSocket(rawdata, sock):
                     ircOut(sock, "NUM {} {} 372 :- {}".format(conf["IRC"]["sid"], matches[0], line))
                 ircOut(sock, "NUM {} {} 376 :End of Message of the Day.".format(conf["IRC"]["sid"], matches[0]))
 
+            matches = re.search(r":(.*?) ENCAP "+re.escape(conf["IRC"]["sid"])+" (.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                submatch = re.search(r"SANICK (.*?) :(.*)", matches[1])
+                if submatch:
+                    submatch = submatch.groups()
+
+                    if submatch[0] in localServer["uids"]:
+                        oldnick = localServer["uids"][submatch[0]]["nick"]
+                        localServer["uids"][submatch[0]]["nick"] = submatch[1]
+
+                        ircOut(sock, ":{} NICK {} :{}".format(submatch[0], submatch[1], int(time.time())))
+
+                        sent = []
+
+                        for chan in remoteServer["uids"][matches[0]]["chans"]:
+                            if chan in localServer["chanmap"]:
+                                to = localServer["chanmap"][chan]
+
+                            if to not in sent:
+                                bot.send_message(to, "{} is now known as {}".format(oldnick, submatch[1]))
+                                sent.append(to)
+
             matches = re.search(r":(.*?) NICK (.*?) (.*)", data)
             if matches:
                 matches = matches.groups()
                 
-                oldnick = remoteServer["uids"][matches[0]]["nick"]
-                remoteServer["uids"][matches[0]]["nick"] = matches[1]
+                if matches[0] in remoteServer["uids"]:
+                    oldnick = remoteServer["uids"][matches[0]]["nick"]
+                    remoteServer["uids"][matches[0]]["nick"] = matches[1]
+
+                if matches[0] in localServer["uids"]:
+                    oldnick = localServer["uids"][matches[0]]["nick"]
+                    localServer["uids"][matches[0]]["nick"] = matches[1]
 
                 sent = []
 
