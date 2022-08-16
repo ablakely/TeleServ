@@ -76,7 +76,7 @@ else:
 
 localServer = JSONParser.loadLocalServerState()
 
-bot = TeleBot(conf["API_KEY"])
+bot = TeleBot(conf["TELEGRAM"]["API_KEY"])
 
 class IsAdmin(custom_filters.SimpleCustomFilter):
     key = 'is_chat_admin'
@@ -450,19 +450,28 @@ def tgSendIRCMsg(msg):
         nick = nickFromTGID(msg.from_user.id)
         chan = channelFromTGID(msg.chat.id)
 
+        msgText = msg.text
+
+        if conf["TELEGRAM"]["enableMentions"] == True:
+            for userid in localServer["uids"]:
+                if localServer['uids'][userid]['telegramuser'] == "": continue
+                
+                if f"@{localServer['uids'][userid]['telegramuser']}" in msgText:
+                    msgText = msgText.replace(f"@{localServer['uids'][userid]['telegramuser']}", localServer["uids"][userid]["nick"])
+
         if pastebin.enabled() == True:
-            if len(msg.text) >= pastebin.msglen():
+            if len(msgText) >= pastebin.msglen():
                 header = "# Automatically posted for {} in {} by TeleServ #\n".format(nick, chan)
-                paste = pastebin.paste(header + msg.text)
+                paste = pastebin.paste(header + msgText)
 
                 log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
-                sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msg.text[0:150].replace("\n", ""), paste))
+                sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msgText[0:150].replace("\n", ""), paste))
                 bot.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
             else:
-                sendIRCPrivMsg(sock, nick, chan, msg.text)
+                sendIRCPrivMsg(sock, nick, chan, msgText)
         else:
-            sendIRCPrivMsg(sock, nick, chan, msg.text)
+            sendIRCPrivMsg(sock, nick, chan, msgText)
     
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
@@ -692,9 +701,10 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
     toNick = nickFromUID(target)
 
     # Replace nick for IRC user with telegram handle to mention them in groups
-    for userid in localServer["uids"]:
-        if localServer["uids"][userid]["nick"] in msg:
-            msg = msg.replace(localServer["uids"][userid]["nick"], f"@{localServer['uids'][userid]['telegramuser']}")
+    if conf["TELEGRAM"]["enableMentions"] == True:
+        for userid in localServer["uids"]:
+            if localServer["uids"][userid]["nick"] in msg:
+                msg = msg.replace(localServer["uids"][userid]["nick"], f"@{localServer['uids'][userid]['telegramuser']}")
 
     # strip mIRC formatting
     msg = re.sub(r"[\x02\x1F\x0F\x16]|\x03(\d\d?(,\d\d?)?)?", "", msg)

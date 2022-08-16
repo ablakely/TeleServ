@@ -1,6 +1,9 @@
 {
-    "API_KEY": "TELEGRAM API KEY",
     "DEBUG": false,
+    "TELEGRAM": {
+        "API_KEY": "TELEGRAM API KEY",
+        "enableMentions": true
+    },
 
     "IMGUR": {
         "API_ID": "IMGUR API ID",
