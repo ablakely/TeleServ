@@ -53,6 +53,19 @@ TeleServ will only respond to IRC operators.
 
 ---
 
+## Imgur
+
+![screenshot3](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot3.png)
+
+TeleServ has the ability to upload images sent to Telegram chats it is in to Imgur and forward the link to to uploaded images as an imgur album to IRC.  To set this up you will need to:
+
+1) Create an Imgur account for your TeleServ instance.
+2) Create an Imgur [API key](https://api.imgur.com/oauth2/addclient) with the "Anonymous usage" type
+3) Modify your conf.json with the ID and Secret keys that you generated, make sure to set `enabled` to `true`.
+4) TeleServ will message the channel you have set for loging with an authorization link, allow it access to the account you made.
+4) Set the pin imgur provides to you with `/msg TeleServ imgurpin <pin>` on IRC
+
+
 ## Pastebin
 
 ![screenshot2](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot2.png)
@@ -89,19 +102,6 @@ as non [PRO](https://pastebin.com/pro) accounts are only allowed to have 10 unli
 | 0     | Public                                             |
 | 1     | Unlisted                                           |
 | 2     | Private (Only acccount bot is using can view post) |
-
----
-
-## Imgur
-
-![screenshot3](https://raw.githubusercontent.com/ablakely/TeleServ/main/doc/screenshot3.png)
-
-TeleServ has the ability to upload images sent to Telegram chats it is in to Imgur and forward the link to to
-uploaded image to IRC.  To set this up you will need to:
-
-1) Create an Imgur [API key](https://api.imgur.com/oauth2/addclient) with the "Anonymous usage" type
-2) Modify your conf.json with the ID and Secret keys that you generated.
-3) Make sure to set `enabled` to `true` in IMGUR section of configuration.
 
 ---
 _Copyright &copy; 2022 Aaron Blakely_

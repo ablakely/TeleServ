@@ -7,15 +7,14 @@
 
 import re
 import os
-from os.path import exists
 from telebot import TeleBot,types,util,custom_filters
 from lib.TSPastebinAPI import TSPastebinAPI
 from lib.TSImgurAPI import TSImgurAPI
+from lib.TSJSON import TSJSON
 import socket
 import ssl
 import time
 import threading
-import json
 
 motd = """
 @@@@@@@@@@@@@@@@@@@@@@@(*#@@@@@@@@@@@@@@@@@@@@@@@@
@@ -58,37 +57,9 @@ remoteServer["opers"] = []
 noticeBuf = ""
 noticeBufMode = False
 
-def readCfg(file):
-    f = open(file)
-    ret = json.load(f)
-    f.close()
+JSONParser = TSJSON("./conf.json", "./bridgestates.json")
 
-    if "enableRAW" not in ret:
-        ret["enableRAW"] = False
-    elif ret["enableRAW"] == True:
-        print("[WARNING] The RAW command is enabled, this is not recommended for production use and should only be used by someone that knows how.")
-
-    return ret
-
-def loadLocalServerState():
-    if exists("./bridgestates.json"):
-        f = open("./bridgestates.json")
-        ret = json.load(f)
-        f.close()
-    else:
-        ret = {}
-        ret["uids"] = {}
-        ret["chanmap"] = {}
-
-    return ret
-
-def writeLocalServerState():
-    f = open("./bridgestates.json", "w")
-    json.dump(localServer, f, indent=2)
-    f.close()
-
-
-conf = readCfg("./conf.json")
+conf = JSONParser.readCfg()
 
 if "PASTEBIN" in conf:
     pastebin = TSPastebinAPI(conf["PASTEBIN"])
@@ -96,14 +67,14 @@ else:
     pastebin = TSPastebinAPI({"pastebinLongMessages": False})
 
 if "IMGUR" in conf:
-    imgur = TSImgurAPI(conf["IMGUR"])
+    imgur = TSImgurAPI(conf["IMGUR"], JSONParser)
 else:
-    imgur = TSImgurAPI({"enabled": False})
+    imgur = TSImgurAPI({"enabled": False}, JSONParser)
 
 # This dict stores our Telegram config as well as client UID information,
 # it will be saved to disk on SIGTERM or when a new user client is created.
 
-localServer = loadLocalServerState()
+localServer = JSONParser.loadLocalServerState()
 
 bot = TeleBot(conf["API_KEY"])
 
@@ -163,7 +134,7 @@ def setTGUserPM(tgid, uid):
         if tgid == str(localServer["uids"][i]["telegramid"]):
             localServer["uids"][i]["pm"] = uid
 
-    writeLocalServerState()
+    JSONParser.writeLocalServerState(localServer)
 
 def getTGUserPM(tgid):
     tgid = str(tgid)
@@ -215,7 +186,7 @@ def createTGUser(msg):
     else:
         bot.reply_to(msg, "You are already in this IRC channel.")
 
-    writeLocalServerState()
+    JSONParser.writeLocalServerState(localServer)
 
 def uidFromNick(nick):
     for uid in localServer["uids"]:
@@ -345,7 +316,7 @@ def setChan(msg):
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
 
         localServer["chanmap"][args[1]] = str(msg.chat.id)
-        writeLocalServerState()
+        JSONParser.writeLocalServerState(localServer)
     else:
         bot.reply_to(msg, "Usage: /setchan <IRC channel")
 
@@ -441,7 +412,7 @@ def tgSetNick(msg):
                 ircOut(sock, ":{} NICK {} :{}".format(uid, args[1], int(time.time())))
                 bot.reply_to(msg, "You are now known as {}".format(args[1]))
 
-                writeLocalServerState()
+                JSONParser.writeLocalServerState(localServer)
             else:
                 bot.reply_to(msg, "{} is in use.".format(args[1]))
         else:
@@ -479,10 +450,9 @@ def tgSendIRCMsg(msg):
         nick = nickFromTGID(msg.from_user.id)
         chan = channelFromTGID(msg.chat.id)
 
-
         if pastebin.enabled() == True:
             if len(msg.text) >= pastebin.msglen():
-                header = "# Automatically posted for {} in {} by TeleServ\n\n".format(nick, chan)
+                header = "# Automatically posted for {} in {} by TeleServ #\n".format(nick, chan)
                 paste = pastebin.paste(header + msg.text)
 
                 log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
@@ -526,27 +496,47 @@ def tgChatMember(message: types.ChatMemberUpdated):
 def photo(msg):
     global sock
 
+    print("image handler called at {}".format(time.time()))
+
     if userIDFromTGID(msg.from_user.id) == False:
             bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
-    fileID = msg.photo[-1].file_id
-    file_info = bot.get_file(fileID)
-    downloaded_file = bot.download_file(file_info.file_path)
+    files = []
+    cnt   = 0
 
-    with open(f"{fileID}.jpg", 'wb') as new_file:
-        new_file.write(downloaded_file)
+    for photo in msg.photo:
+        cnt += 1
 
-        nick = nickFromTGID(msg.from_user.id)
-        src = channelFromTGID(msg.chat.id)
-        img = imgur.uploadTG(f"{fileID}.jpg", nick, src)
+        # Every 4th element in msg.photo is the original sized image
+        if cnt == len(msg.photo):
+            file_info = bot.get_file(photo.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+
+            with open(f"/tmp/{photo.file_id}.jpg", 'wb') as new_file:
+                new_file.write(downloaded_file)
+                files.append(f"{photo.file_id}.jpg")
+
+            cnt = 0
+
+    nick = nickFromTGID(msg.from_user.id)
+    src = channelFromTGID(msg.chat.id)
+
+
+    def callback(msg, img):
+        link = f"https://imgur.com/a/{img['id']}"
 
         if msg.caption:
-            mesg = "Sent a photo {} with caption: {}".format(img["link"], msg.caption.replace("\n", " "))
+            if img['cnt'] > 1:
+                mesg = "Sent {} photos {} with caption: {}".format(img['cnt'], link, msg.caption.replace("\n", " "))
+            else:
+                mesg = "Sent a photo {} with caption: {}".format(link, msg.caption.replace("\n", " "))
         else:
-            mesg = "Sent a photo: {}".format(img["link"])
+            if img['cnt'] > 1:
+                mesg = "Sent {} photos: {}".format(img['cnt'], link)
+            else:
+                mesg = "Sent a photo: {}".format(link)
 
-        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(img["link"], msg.from_user.username, msg.chat.id))
 
         if msg.chat.type == "group":
             chan = channelFromTGID(msg.chat.id)
@@ -561,7 +551,10 @@ def photo(msg):
             toUID = getTGUserPM(msg.from_user.id)
             sendIRCPrivMsg(sock, nick, toUID, mesg)
 
-    os.remove(f"{fileID}.jpg")
+        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(link, msg.from_user.username, msg.chat.id))
+
+    imgur.upload(files, nick, src, msg.caption if msg.caption else "", msg, callback)
+    
 
 #
 # Handle our connection to the IRC Server
@@ -673,7 +666,7 @@ def sendIRCBurst(sock):
     localServer["uids"][uid]["lastmsg"] = 0
     localServer["uids"][uid]["chans"] = []
 
-    writeLocalServerState()
+    JSONParser.writeLocalServerState(localServer)
 
 def sendIRCPrivMsg(sock, nick, chan, msg):
     global localServer
@@ -723,6 +716,13 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
         elif "RAW" in msg or "raw" in msg and conf["enableRAW"] == True:
             tmp = msg.split(" ")
             ircOut(sock, " ".join(tmp[1:]))
+        elif "IMGURPIN" in msg or "imgurpin" in msg:
+            tmp = msg.split(" ")
+            pin = " ".join(tmp[1:])
+
+            sendIRCNotice(sock, tsuid, nick, "Fetching imgur auth tokens with pin: {}".format(pin))
+            imgur.getAuthTokens(pin)
+
         elif "WHOIS" in msg or "whois" in msg:
             tmp = msg.split(" ")
             tuid = uidFromNick(tmp[1]) if tmp[1][0] != "@" else uidFromTGUsername(tmp[1])
@@ -936,6 +936,11 @@ def handleSocket(rawdata, sock):
                     joinIRCUser(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "o")
                     rejoinTGUsers(sock)
 
+                    if imgur.isAuthed() == False:
+                        imgurAuthURL = imgur.getAuthURL()
+                        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Imgur Auth URL: {}".format(imgurAuthURL))
+                        sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Use /msg {} IMGURPIN <pin> to allow me to create imgur albums and uploads.".format(conf["IRC"]["nick"]))
+
             matches = re.search(r":(.*?) PART (.*)", data)
             if matches:
                 matches = matches.groups()
@@ -1016,10 +1021,12 @@ def main():
 
     finally:
         print("\nWriting bridgestates.json")
-        writeLocalServerState()
+        JSONParser.writeLocalServerState(localServer)
+        imgur.stopUploadThread()
 
         print("Error: IRC server closed the connection, exiting.")
         sock.close()
+        exit()
 
 if __name__ == '__main__':
     main()
