@@ -20,7 +20,6 @@
 # Support: https://webchat.ephasic.org/?join=ephasic
 
 import re
-import os
 from telebot import TeleBot,types,util,custom_filters
 from lib.TSPastebinAPI import TSPastebinAPI
 from lib.TSImgurAPI import TSImgurAPI
@@ -35,20 +34,20 @@ motd = """
 @@@@@@@@@@@@@@    .@@@@@@@@@@@@@    ,@@@@@@@@@@@@@
 @@@@@@@@@@   @@@@@@@@@@@@@@@@@@@@@@@@@   @@@@@@@@@
 @@@@@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@@@@@
-@@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@@    TeleServ (v1.0): Telegram Bridge Server
+@@@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@@      
 @@@@  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  @@@
 @@% @@@@@@@@@@@@@@@@@@@@@@@@@@@@     @@@@@@@@@@ @@
-@@ @@@@@@@@@@@@@@@@@@@@@@@    @@    @@@@@@@@@@@@ @          Written by Aaron Blakely
-@ *@@@@@@@@@@@@@@@@@    @@@@@  %@  @@@@@@@@@@@@@, 
+@@ @@@@@@@@@@@@@@@@@@@@@@@    @@    @@@@@@@@@@@@ @      
+@ *@@@@@@@@@@@@@@@@@    @@@@@  %@  @@@@@@@@@@@@@,  
 @ @@@@@@@@@@@@    @@@@@@@@@  @@@  @@@@@@@@@@@@@@@ 
-  @@@@@@    @@@@@@@@@@@@  @@@@@  @@@@@@@@@@@@@@@@ 
-@ @@@@@@@@@   @@@@@@@@  @@@@@@  @@@@@@@@@@@@@@@@@       https://github.com/ablakely/TeleServ
+  @@@@@@    @@@@@@@@@@@@  @@@@@  @@@@@@@@@@@@@@@@       TeleServ (v1.0): Telegram Bridge Server
+@ @@@@@@@@@   @@@@@@@@  @@@@@@  @@@@@@@@@@@@@@@@@       
 @ .@@@@@@@@@@@@@     @@@@@@@@  @@@@@@@@@@@@@@@@@. 
 @@ @@@@@@@@@@@@@@@@  @@@@@@@ ,@@@@@@@@@@@@@@@@@@ @
 @@@ @@@@@@@@@@@@@@@@@ @@@@@ &@@@@@@@@@@@@@@@@@@ @@
-@@@@  @@@@@@@@@@@@@@@@ @@@ @@@@@@@@@@@@@@@@@@  @@@
-@@@@@  @@@@@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@ .@@@@
-@@@@@@@@  @@@@@@@@@@@@@@&@@@@@@@@@@@@@@@@  @@@@@@@
+@@@@  @@@@@@@@@@@@@@@@ @@@ @@@@@@@@@@@@@@@@@@  @@@ 
+@@@@@  @@@@@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@ .@@@@      Copyright 2022 (C) Aaron Blakely
+@@@@@@@@  @@@@@@@@@@@@@@&@@@@@@@@@@@@@@@@  @@@@@@@      https://github.com/ablakely/TeleServ
 @@@@@@@@@@,  @@@@@@@@@@@@@@@@@@@@@@@@@  .@@@@@@@@@
 @@@@@@@@@@@@@@@    @@@@@@@@@@@@@    @@@@@@@@@@@@@@
 """
@@ -1046,8 +1045,6 @@ def handleSocket(rawdata, sock):
             if matches:
                 matches = matches.groups()
 
-                # IRC RAW: :00AAAAAAT FMODE #lobby 1656191402 +qo 214AAAAAD :214AAAAAD
-
                 if matches[1] in remoteServer["chans"]:
                     if "modes" not in remoteServer["chans"][matches[1]]:
                         remoteServer["chans"][matches[1]]["modes"] = []
@@ -1064,8 +1061,6 @@ def handleSocket(rawdata, sock):
                         targets.append(target)
 
                 readableModes = []
-
-                print(targets)
 
                 for mode in modeSplit:
                     if mode == "+":
@@ -1106,14 +1101,12 @@ def handleSocket(rawdata, sock):
 
                         modeCnt += 1
 
-                    
-
                 if matches[1] in localServer["chanmap"]:
                     to = localServer["chanmap"][matches[1]]
                     who = nickFromUID(matches[0])
 
                     if who != False:
-                        bot.send_message(to, "{} updated channel modes: {}".format(who, " ".join(readableModes)))
+                        bot.send_message(to, "⚫ {} updated channel modes: {}".format(who, " ".join(readableModes)))
 
                     
 
@@ -1191,7 +1184,7 @@ def handleSocket(rawdata, sock):
                                 to = localServer["chanmap"][chan]
 
                             if to not in sent:
-                                bot.send_message(to, "{} is now known as {}".format(oldnick, submatch[1]))
+                                bot.send_message(to, "⚫ {} is now known as {}".format(oldnick, submatch[1]))
                                 sent.append(to)
 
                 submatch = re.search(r"SAJOIN (.*?) :(.*)", matches[1])
@@ -1240,7 +1233,7 @@ def handleSocket(rawdata, sock):
                         to = localServer["chanmap"][chan]
 
                         if to not in sent:
-                            bot.send_message(to, "{} is now known as {}".format(oldnick, matches[1]))
+                            bot.send_message(to, "⚫ {} is now known as {}".format(oldnick, matches[1]))
                             sent.append(to)
 
             matches = re.search(r":(.*?) OPERTYPE :(.*)", data)
@@ -1272,9 +1265,9 @@ def handleSocket(rawdata, sock):
                     to = localServer["chanmap"][args[0]]
 
                     if len(args) > 1:
-                        bot.send_message(to, "{} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "", 1)))
+                        bot.send_message(to, "⬅️ {} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "", 1)))
                     else:
-                        bot.send_message(to, "{} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
+                        bot.send_message(to, "⬅️ {} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
 
                 remoteServer["chans"][args[0]]["users"].remove(matches[0])
                 remoteServer["uids"][matches[0]]["chans"].remove(args[0])
@@ -1287,7 +1280,7 @@ def handleSocket(rawdata, sock):
                 if args[0] in localServer["chanmap"]:
                     to = localServer["chanmap"][args[0]]
 
-                    bot.send_message(to, "{} ({}@{}) has joined {}".format(
+                    bot.send_message(to, "➡️ {} ({}@{}) has joined {}".format(
                         remoteServer["uids"][matches[0]]["nick"],
                         remoteServer["uids"][matches[0]]["user"],
                         remoteServer["uids"][matches[0]]["host"],
@@ -1305,9 +1298,9 @@ def handleSocket(rawdata, sock):
                         to = localServer["chanmap"][chan]
 
                         if matches[1]:
-                            bot.send_message(to, "{} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
+                            bot.send_message(to, "⬅️ {} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
                         else:
-                            bot.send_message(to, "{} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
+                            bot.send_message(to, "⬅️ {} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
                     
                     remoteServer["uids"][matches[0]]["chans"].remove(chan)
                     remoteServer["chans"][chan]["users"].remove(matches[0])
