@@ -1035,6 +1035,13 @@ def handleSocket(rawdata, sock):
                     else:
                         remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], None])
 
+                if matches[1] in localServer["chanmap"]:
+                    to = localServer["chanmap"][matches[1]]
+                    who = nickFromUID(matches[0])
+
+                    if who != False:
+                        bot.send_message(to, "{} sets mode {} {}".format(who, matches[3], matches[4]))
+
                     
 
             matches = re.search(r":(.*?) UID (.*?) (\d+) (.*?) (.*?) (.*?) (.*?) (.*?) (\d+) (.*?) :(.*)", data)
