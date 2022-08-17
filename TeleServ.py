@@ -3,6 +3,20 @@
 # TeleServ - Telegram to IRC bridge server
 #
 # Copyright (c) 2022 Aaron Blakely
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 # Support: https://webchat.ephasic.org/?join=ephasic
 
 import re
@@ -779,6 +793,19 @@ def joinIRCUser(sock, nick, chan, usermode):
     ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uid, chan, membID, remoteServer["chans"][chan]["ts"], usermode))
     membID += 1
 
+def partIRCUser(sock, nick, chan, reason):
+
+    uid = uidFromNick(nick)
+
+    if chan in remoteServer["chans"]:
+        if uid in remoteServer["chans"][chan]["users"]:
+            remoteServer["chans"][chan]["users"].remove(uid)
+            
+            if reason != "":
+                ircOut(sock, ":{} PART {} :{}".format(uid, chan, reason))
+            else:
+                ircOut(sock, ":{} PART {}".format(uid, chan))
+
 def rejoinTGUsers(sock):
     global localServer
 
@@ -1019,28 +1046,74 @@ def handleSocket(rawdata, sock):
             if matches:
                 matches = matches.groups()
 
+                # IRC RAW: :00AAAAAAT FMODE #lobby 1656191402 +qo 214AAAAAD :214AAAAAD
+
                 if matches[1] in remoteServer["chans"]:
                     if "modes" not in remoteServer["chans"][matches[1]]:
                         remoteServer["chans"][matches[1]]["modes"] = []
 
-                if matches[3][0] == "+":
-                    if matches[4] != "":
-                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], matches[4]])
-                    else:
-                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], None])
+                modeSplit = [*matches[3]]
+                setMode = ""
+                modeCnt = 0
+                targets = []
 
-                elif matches[3][0] == "-":
-                    if matches[4] != "":
-                        remoteServer["chans"][matches[1]]["modes"].remove([matches[3][1], matches[4]])
+                for target in matches[4].split(" "):
+                    if target[0] == ":":
+                        targets.append(target.replace(":", "", 1))
                     else:
-                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], None])
+                        targets.append(target)
+
+                readableModes = []
+
+                print(targets)
+
+                for mode in modeSplit:
+                    if mode == "+":
+                        setMode = "+"
+                        continue
+                    if mode == "-":
+                        setMode = "-"
+                        continue
+
+                    
+                    if setMode == "+":
+                        if matches[4] != "":
+                            remoteServer["chans"][matches[1]]["modes"].append([mode, targets[modeCnt]])
+
+                            if nickFromUID(targets[modeCnt]) != False:
+                                readableModes.append("+{} {}".format(mode, nickFromUID(targets[modeCnt])))
+                            else:
+                                readableModes.append("+{} {}".format(mode, targets[modeCnt]))
+                        else:
+                            remoteServer["chans"][matches[1]]["modes"].append([mode, None])
+
+                            readableModes.append("+{}".format(mode))
+
+                        modeCnt += 1
+
+                    elif setMode == "-":
+                        if matches[4] != "":
+                            remoteServer["chans"][matches[1]]["modes"].remove([mode, targets[modeCnt]])
+                            
+                            if nickFromUID(targets[modeCnt]) != False:
+                                readableModes.append("-{} {}".format(mode, nickFromUID(targets[modeCnt])))
+                            else:
+                                readableModes.append("-{} {}".format(mode, targets[modeCnt]))
+                        else:
+                            remoteServer["chans"][matches[1]]["modes"].append([mode, None])
+
+                            readableModes.append("-{}".format(mode))
+
+                        modeCnt += 1
+
+                    
 
                 if matches[1] in localServer["chanmap"]:
                     to = localServer["chanmap"][matches[1]]
                     who = nickFromUID(matches[0])
 
                     if who != False:
-                        bot.send_message(to, "{} sets mode {} {}".format(who, matches[3], matches[4]))
+                        bot.send_message(to, "{} updated channel modes: {}".format(who, " ".join(readableModes)))
 
                     
 
@@ -1120,6 +1193,33 @@ def handleSocket(rawdata, sock):
                             if to not in sent:
                                 bot.send_message(to, "{} is now known as {}".format(oldnick, submatch[1]))
                                 sent.append(to)
+
+                submatch = re.search(r"SAJOIN (.*?) :(.*)", matches[1])
+                if submatch:
+                    submatch = submatch.groups()
+
+                    if submatch[1] in localServer["chanmap"]:
+                        joinIRCUser(sock, nickFromUID(submatch[0]), submatch[1], "v")
+                        localServer["uids"][submatch[0]]["chans"].append(submatch[1])
+
+                submatch = re.search(r"SAPART (.*?) (.*)", matches[1])
+                if submatch:
+                    submatch = submatch.groups()
+                    split = submatch[1].split(" ")
+
+                    for i in range(len(split)):
+                        if split[i][0] == ":":
+                            split[i] = split[i].replace(":", "", 1)
+
+                    if len(split) > 1:
+                        chan = split[0]
+                        reason = split[1]
+                    else:
+                        chan = split[0]
+                        reason = ""
+
+                    if chan in localServer["chanmap"]:
+                        partIRCUser(sock, nickFromUID(submatch[0]), chan, reason)
 
             matches = re.search(r":(.*?) NICK (.*?) (.*)", data)
             if matches:
