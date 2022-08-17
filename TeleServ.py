@@ -111,11 +111,15 @@ def nickFromTGID(tgid):
             return localServer["uids"][uid]["nick"]
     return False
 
+def tgUsernameFromUID(tuid):
+    if tuid in localServer["uids"]:
+        return localServer["uids"][tuid]["telegramuser"]
+
 def tgUserInChannel(tgid, chan):
     tgid = str(tgid)
 
     for uid in localServer["uids"]:
-        if tgid == str(localServer["uids"][uid]["telegramid"]) and chan in localServer["uids"][uid]["chans"]:
+        if tgid == str(localServer["uids"][uid]["telegramid"]) and userIDFromTGID(tgid) in remoteServer["chans"][chan]["users"]:
             return True
     return False
 
@@ -179,8 +183,14 @@ def createTGUser(msg):
     
     
     if tgUserInChannel(msg.from_user.id, channelFromTGID(msg.chat.id)) == False:
+        if checkBan(nickFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id)) == True:
+            bot.reply_to(msg, "Cannot connect you to {}, you are banned.".format(channelFromTGID(msg.chat.id)))
+            return
+
         joinIRCUser(sock, userIDFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
-        localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
+
+        if channelFromTGID(msg.chat.id) not in localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"]:
+            localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
 
         bot.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id)))
     else:
@@ -189,6 +199,11 @@ def createTGUser(msg):
     JSONParser.writeLocalServerState(localServer)
 
 def uidFromNick(nick):
+    if nick in localServer["uids"]:
+        return nick
+    if nick in remoteServer["uids"]:
+        return nick
+
     for uid in localServer["uids"]:
         if nick == localServer["uids"][uid]["nick"]:
             return uid
@@ -256,6 +271,16 @@ def findIRCUserFromMSG(msg, lookupNick=True):
             to = nickFromUID(to)
 
     return to
+
+def inChannel(uid, chan):
+    if chan not in remoteServer["chans"]:
+        return False
+
+    if uid not in remoteServer["chans"][chan]["users"]:
+        return False
+
+    return True
+
 
 #
 # Utility functions
@@ -328,15 +353,15 @@ def conn(msg):
 def tgSendIRCAction(msg):
     global sock, localServer
 
-    if userIDFromTGID(msg.from_user.id) == False:
+    to = findIRCUserFromMSG(msg)
+
+    if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), to) == False:
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
         bot.reply_to(msg, "You have not created a private message with a user")
         return
-
-    to = findIRCUserFromMSG(msg)
     
     tmp = msg.text.split(" ")
     tmp.pop(0)
@@ -349,8 +374,10 @@ def tgSendIRCAction(msg):
 def tgSendIRCNotice(msg):
     global sock, localServer
 
+    to = findIRCUserFromMSG(msg)
+
     if msg.chat.type != "group" and msg.chat.type != "private": return
-    if userIDFromTGID(msg.from_user.id) == False:
+    if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), to) == False:
         bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
@@ -358,7 +385,9 @@ def tgSendIRCNotice(msg):
         bot.reply_to(msg, "You have not created a private message with a user")
         return
 
-    to = findIRCUserFromMSG(msg)
+    if checkBan(nickFromTGID(msg.from_user.id), to) == True:
+        bot.reply_to(msg, "Cannot send message to {}, you are banned.")
+        return
 
     args = msg.text.split()
     if len(args) > 1:
@@ -443,19 +472,23 @@ def tgSendIRCMsg(msg):
     if msg.chat.type == "group":
         if channelFromTGID(msg.chat.id) == False: return
 
-        if userIDFromTGID(msg.from_user.id) == False:
+        nick = nickFromTGID(msg.from_user.id)
+        chan = channelFromTGID(msg.chat.id)
+
+        if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), chan) == False:
             bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
-        nick = nickFromTGID(msg.from_user.id)
-        chan = channelFromTGID(msg.chat.id)
+        if checkBan(nick, chan) == True:
+            bot.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
+            return
 
         msgText = msg.text
 
         if conf["TELEGRAM"]["enableMentions"] == True:
             for userid in localServer["uids"]:
                 if localServer['uids'][userid]['telegramuser'] == "": continue
-                
+
                 if f"@{localServer['uids'][userid]['telegramuser']}" in msgText:
                     msgText = msgText.replace(f"@{localServer['uids'][userid]['telegramuser']}", localServer["uids"][userid]["nick"])
 
@@ -507,7 +540,10 @@ def photo(msg):
 
     log("image handler called at {}".format(time.time()))
 
-    if userIDFromTGID(msg.from_user.id) == False:
+    nick = nickFromTGID(msg.from_user.id)
+    src = channelFromTGID(msg.chat.id)
+
+    if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), src) == False:
             bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
@@ -528,9 +564,6 @@ def photo(msg):
 
             cnt = 0
 
-    nick = nickFromTGID(msg.from_user.id)
-    src = channelFromTGID(msg.chat.id)
-
 
     def callback(msg, img):
         link = f"https://imgur.com/a/{img['id']}"
@@ -550,6 +583,10 @@ def photo(msg):
         if msg.chat.type == "group":
             chan = channelFromTGID(msg.chat.id)
 
+            if checkBan(nick, chan) == True:
+                bot.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
+                return
+
             sendIRCPrivMsg(sock, nick, chan, mesg)
 
         elif msg.chat.type == "private":
@@ -568,6 +605,106 @@ def photo(msg):
 #
 # Handle our connection to the IRC Server
 #
+
+def checkBanMask(nick, user, host, banmask):
+    ban_nick = ""
+    ban_user = ""
+    ban_host = ""
+
+    parseMode = 0
+
+    for i in range(len(banmask)):
+        if banmask[i] == "!":
+            parseMode = 1
+            continue
+        if banmask[i] == "@":
+            parseMode = 2
+            continue
+
+        if parseMode == 0:
+            ban_nick += banmask[i]
+        elif parseMode == 1:
+            ban_user += banmask[i]
+        elif parseMode == 2:
+            ban_host += banmask[i]
+
+    if ban_nick != nick and ban_nick != "*":
+        if "*" in ban_nick:
+            # convert into regular expression and test
+
+            matchStr = r""
+            
+            for i in range(len(ban_nick)):
+                if ban_nick[i] == "*" and i+1 == len(ban_nick):
+                    matchStr += "(.*)"
+                elif ban_nick[i] == "*":
+                    matchStr += "(.*?)"
+                else:
+                    matchStr += re.escape(ban_nick[i])
+
+            res = re.search(matchStr, nick)
+            if res:
+                return True
+            else:
+                return False
+        else:
+            return False
+    if ban_user != user and ban_user != "*":
+        if "*" in ban_user:
+            matchStr = r""
+            
+            for i in range(len(ban_user)):
+                if ban_user[i] == "*" and i+1 == len(ban_user):
+                    matchStr += "(.*)"
+                elif ban_user[i] == "*":
+                    matchStr += "(.*?)"
+                else:
+                    matchStr += re.escape(ban_user[i])
+
+            res = re.search(matchStr, user)
+            if res:
+                return True
+            else:
+                return False
+        else:
+            return False
+    if ban_host != host and ban_host != "*":
+        if "*" in ban_host:
+            matchStr = r""
+            
+            for i in range(len(ban_host)):
+                if ban_host[i] == "*" and i+1 == len(ban_host):
+                    matchStr += "(.*)"
+                elif ban_host[i] == "*":
+                    matchStr += "(.*?)"
+                else:
+                    matchStr += re.escape(ban_host[i])
+
+            res = re.search(matchStr, host)
+            if res:
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    return True
+
+def checkBan(nick, chan):
+    uid = uidFromNick(nick)
+    user = localServer["uids"][uid]["user"] if "user" in localServer["uids"][uid] else ""
+    host = localServer["uids"][uid]["host"] if "host" in localServer["uids"][uid] else ""
+
+    if chan not in remoteServer["chans"]: return False
+
+    for mode,arg in remoteServer["chans"][chan]["modes"]:
+        if user == "" or host == "": continue
+
+        if mode == "b":
+            if checkBanMask(nick, user, host, arg) == True:
+                return True
+
+    return False
 
 def ircOut(sock, msg):
     msg = msg.replace("\n", "")
@@ -626,15 +763,20 @@ def addIRCUser(sock, user, nick, host, modes, real, isService=False):
 def joinIRCUser(sock, nick, chan, usermode):
     global remoteServer, localServer, membID
 
+    uid = uidFromNick(nick)
+
     if chan not in remoteServer["chans"]:
         remoteServer["chans"][chan] = {}
         remoteServer["chans"][chan]["ts"] = time.time()
-        remoteServer["chans"][chan]["modes"] = "+nt"
-        remoteServer["chans"][chan]["users"] = ["{},{}:{}".format(usermode, uidFromNick(nick), membID)]
+        remoteServer["chans"][chan]["modes"] = [["n", None], ["t", None]]
+        remoteServer["chans"][chan]["users"] = [uid]
         membID += 1
 
-    remoteServer["chans"][chan]["users"].append(uidFromNick(nick))
-    ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uidFromNick(nick), chan, membID, remoteServer["chans"][chan]["ts"], usermode))
+    if checkBan(nick, chan) == True:
+        return
+
+    remoteServer["chans"][chan]["users"].append(uid)
+    ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uid, chan, membID, remoteServer["chans"][chan]["ts"], usermode))
     membID += 1
 
 def rejoinTGUsers(sock):
@@ -703,6 +845,8 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
     # Replace nick for IRC user with telegram handle to mention them in groups
     if conf["TELEGRAM"]["enableMentions"] == True:
         for userid in localServer["uids"]:
+            if localServer["uids"][userid]["telegramuser"] == "": continue
+
             if localServer["uids"][userid]["nick"] in msg:
                 msg = msg.replace(localServer["uids"][userid]["nick"], f"@{localServer['uids'][userid]['telegramuser']}")
 
@@ -853,7 +997,12 @@ def handleSocket(rawdata, sock):
                 matches = matches.groups()
                 remoteServer["chans"][matches[1]] = {}
                 remoteServer["chans"][matches[1]]["ts"] = matches[2]
-                remoteServer["chans"][matches[1]]["modes"] = matches[3]
+                remoteServer["chans"][matches[1]]["modes"] = []
+
+                for mode in matches[3]:
+                    if mode == "+": continue
+                    remoteServer["chans"][matches[1]]["modes"].append([mode, None])
+
                 remoteServer["chans"][matches[1]]["users"] = []
 
                 for user in matches[4].split(" "):
@@ -865,6 +1014,28 @@ def handleSocket(rawdata, sock):
 
                         if useruid in remoteServer["uids"]:
                             remoteServer["uids"][useruid]["chans"].append(matches[1])
+
+            matches = re.search(r":(.*?) FMODE (.*?) (.*?) (.*?) (.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                if matches[1] in remoteServer["chans"]:
+                    if "modes" not in remoteServer["chans"][matches[1]]:
+                        remoteServer["chans"][matches[1]]["modes"] = []
+
+                if matches[3][0] == "+":
+                    if matches[4] != "":
+                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], matches[4]])
+                    else:
+                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], None])
+
+                elif matches[3][0] == "-":
+                    if matches[4] != "":
+                        remoteServer["chans"][matches[1]]["modes"].remove([matches[3][1], matches[4]])
+                    else:
+                        remoteServer["chans"][matches[1]]["modes"].append([matches[3][1], None])
+
+                    
 
             matches = re.search(r":(.*?) UID (.*?) (\d+) (.*?) (.*?) (.*?) (.*?) (.*?) (\d+) (.*?) :(.*)", data)
             if matches:
@@ -994,7 +1165,7 @@ def handleSocket(rawdata, sock):
                     to = localServer["chanmap"][args[0]]
 
                     if len(args) > 1:
-                        bot.send_message(to, "{} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "")))
+                        bot.send_message(to, "{} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "", 1)))
                     else:
                         bot.send_message(to, "{} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
 
@@ -1033,6 +1204,32 @@ def handleSocket(rawdata, sock):
                     
                     remoteServer["uids"][matches[0]]["chans"].remove(chan)
                     remoteServer["chans"][chan]["users"].remove(matches[0])
+
+            matches = re.search(r":(.*?) KICK (.*?) (.*?) (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                if matches[1] in localServer["chanmap"]:
+                    to = localServer["chanmap"][matches[1]]
+
+                    who = nickFromUID(matches[2])
+
+                    if conf["TELEGRAM"]["enableMentions"] == True:
+                        who = "@" + tgUsernameFromUID(matches[2])
+
+                    bot.send_message(to, "{} kicked {} (Reason: {})".format(
+                        nickFromUID(matches[0]),
+                        who,
+                        matches[4]
+                    ))
+                
+                if matches[2] in localServer["uids"]:
+                    localServer["uids"][matches[2]]["chans"].remove(matches[1])
+
+                if matches[2] in remoteServer["uids"]:
+                    remoteServer["uids"][matches[2]]["chans"].remove(matches[1])
+
+                remoteServer["chans"][matches[1]]["users"].remove(matches[2])
 
 
         prevline = data
