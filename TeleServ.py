@@ -151,7 +151,7 @@ def setTGUserPM(tgid, uid):
         if tgid == str(localServer["uids"][i]["telegramid"]):
             localServer["uids"][i]["pm"] = uid
 
-    JSONParser.writeLocalServerState(localServer)
+    JSONParser.writeLocalServerState()
 
 def getTGUserPM(tgid):
     tgid = str(tgid)
@@ -209,7 +209,7 @@ def createTGUser(msg):
     else:
         bot.reply_to(msg, "You are already in this IRC channel.")
 
-    JSONParser.writeLocalServerState(localServer)
+    JSONParser.writeLocalServerState()
 
 def uidFromNick(nick):
     if nick in localServer["uids"]:
@@ -354,7 +354,7 @@ def setChan(msg):
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
 
         localServer["chanmap"][args[1]] = str(msg.chat.id)
-        JSONParser.writeLocalServerState(localServer)
+        JSONParser.writeLocalServerState()
     else:
         bot.reply_to(msg, "Usage: /setchan <IRC channel")
 
@@ -454,7 +454,7 @@ def tgSetNick(msg):
                 ircOut(sock, ":{} NICK {} :{}".format(uid, args[1], int(time.time())))
                 bot.reply_to(msg, "You are now known as {}".format(args[1]))
 
-                JSONParser.writeLocalServerState(localServer)
+                JSONParser.writeLocalServerState()
             else:
                 bot.reply_to(msg, "{} is in use.".format(args[1]))
         else:
@@ -789,6 +789,10 @@ def joinIRCUser(sock, nick, chan, usermode):
         return
 
     remoteServer["chans"][chan]["users"].append(uid)
+    if usermode:
+        for m in usermode.split():
+            remoteServer["chans"][chan]["modes"].append([m, uid])
+
     ircOut(sock, ":{} IJOIN {} {} {} :{}".format(uid, chan, membID, remoteServer["chans"][chan]["ts"], usermode))
     membID += 1
 
@@ -843,7 +847,7 @@ def sendIRCBurst(sock):
     localServer["uids"][uid]["lastmsg"] = 0
     localServer["uids"][uid]["chans"] = []
 
-    JSONParser.writeLocalServerState(localServer)
+    JSONParser.writeLocalServerState()
 
 def sendIRCPrivMsg(sock, nick, chan, msg):
     global localServer
@@ -1000,11 +1004,6 @@ def handleSocket(rawdata, sock):
 
             continue
 
-        if data[0] != ":":
-            data = prevline + data +"\n"
-
-        log("IRC RAW: {}".format(data))
-
         if re.search(r":(.*)", data):
             matches = re.search(r"SERVER (.*?) (.*?) 0 (.*?) :(.*)", data)
             if matches:
@@ -1017,6 +1016,8 @@ def handleSocket(rawdata, sock):
                 if initalBurstSent == False:
                     sendIRCBurst(sock)
                     initalBurstSent = True
+
+                continue
 
             matches = re.search(r":(.*?) FJOIN (.*?) (\d+) (.*?) :(.*)", data)
             if matches:
@@ -1035,11 +1036,17 @@ def handleSocket(rawdata, sock):
                     usermatch = re.search(r"(.*?),(.*)", user)
                     if usermatch:
                         usermatch = usermatch.groups()
+
                         useruid = usermatch[1].split(":")[0]
                         remoteServer["chans"][matches[1]]["users"].append(useruid)
 
                         if useruid in remoteServer["uids"]:
                             remoteServer["uids"][useruid]["chans"].append(matches[1])
+
+                            if usermatch[0] != "":
+                                remoteServer["chans"][matches[1]]["modes"].append([usermatch[0], useruid])
+
+                continue
 
             matches = re.search(r":(.*?) FMODE (.*?) (.*?) (.*?) (.*)", data)
             if matches:
@@ -1108,7 +1115,7 @@ def handleSocket(rawdata, sock):
                     if who != False:
                         bot.send_message(to, "⚫ {} updated channel modes: {}".format(who, " ".join(readableModes)))
 
-                    
+                continue
 
             matches = re.search(r":(.*?) UID (.*?) (\d+) (.*?) (.*?) (.*?) (.*?) (.*?) (\d+) (.*?) :(.*)", data)
             if matches:
@@ -1124,6 +1131,8 @@ def handleSocket(rawdata, sock):
                 remoteServer["uids"][matches[1]]["name"] = matches[10]
                 remoteServer["uids"][matches[1]]["chans"] = []
 
+                continue
+
             matches = re.search(r":(.*?) PRIVMSG (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
@@ -1133,11 +1142,15 @@ def handleSocket(rawdata, sock):
                 else:
                     ircPrivMsgHandler(matches[0], matches[1], matches[2])
 
+                continue
+
             matches = re.search(r":(.*?) NOTICE (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
 
                 ircPrivMsgHandler(matches[0], matches[1], matches[2], msgType="NOTICE")
+
+                continue
 
             matches = re.search(r":(.*?) IDLE (.*)", data)
             if matches:
@@ -1145,13 +1158,15 @@ def handleSocket(rawdata, sock):
 
                 if uidFromNick(conf["IRC"]["nick"]) == matches[1]:
                     ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
-                    return
+                    continue
 
                 if getLastMsgTime(matches[1]) != False:
                     calc = int(time.time()) - getLastMsgTime(matches[1])
                     ircOut(sock, ":{} IDLE {} :{}".format(matches[1], matches[0], calc))
                 else:
                     ircOut(sock, ":{} IDLE {} :0".format(matches[1], matches[0]))
+
+                continue
 
             matches = re.search(r":(.*?) MOTD :(.*)", data)
             if matches:
@@ -1162,6 +1177,8 @@ def handleSocket(rawdata, sock):
                 for line in motdSplit:
                     ircOut(sock, "NUM {} {} 372 :- {}".format(conf["IRC"]["sid"], matches[0], line))
                 ircOut(sock, "NUM {} {} 376 :End of Message of the Day.".format(conf["IRC"]["sid"], matches[0]))
+
+                continue
 
             matches = re.search(r":(.*?) ENCAP "+re.escape(conf["IRC"]["sid"])+" (.*)", data)
             if matches:
@@ -1214,6 +1231,8 @@ def handleSocket(rawdata, sock):
                     if chan in localServer["chanmap"]:
                         partIRCUser(sock, nickFromUID(submatch[0]), chan, reason)
 
+                continue
+
             matches = re.search(r":(.*?) NICK (.*?) (.*)", data)
             if matches:
                 matches = matches.groups()
@@ -1236,10 +1255,14 @@ def handleSocket(rawdata, sock):
                             bot.send_message(to, "⚫ {} is now known as {}".format(oldnick, matches[1]))
                             sent.append(to)
 
+                continue
+
             matches = re.search(r":(.*?) OPERTYPE :(.*)", data)
             if matches:
                 matches = matches.groups()
                 remoteServer["opers"].append(matches[0])
+
+                continue
 
             matches = re.search(r":(.*?) PING (.*)", data)
             if matches:
@@ -1256,7 +1279,9 @@ def handleSocket(rawdata, sock):
                         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Imgur Auth URL: {}".format(imgurAuthURL))
                         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Use /msg {} IMGURPIN <pin> to allow me to create imgur albums and uploads.".format(conf["IRC"]["nick"]))
 
-            matches = re.search(r":(.*?) PART (.*)", data)
+                continue
+
+            matches = re.search(r"^:(.*?) PART (.*)", data)
             if matches:
                 matches = matches.groups()
                 args = matches[1].split(" ")
@@ -1271,6 +1296,7 @@ def handleSocket(rawdata, sock):
 
                 remoteServer["chans"][args[0]]["users"].remove(matches[0])
                 remoteServer["uids"][matches[0]]["chans"].remove(args[0])
+                continue
 
             matches = re.search(r":(.*?) IJOIN (.*)", data)
             if matches:
@@ -1288,6 +1314,7 @@ def handleSocket(rawdata, sock):
 
                 remoteServer["uids"][matches[0]]["chans"].append(args[0])
                 remoteServer["chans"][args[0]]["users"].append(matches[0])
+                continue
 
             matches = re.search(r":(.*?) QUIT (.*)", data)
             if matches:
@@ -1304,6 +1331,8 @@ def handleSocket(rawdata, sock):
                     
                     remoteServer["uids"][matches[0]]["chans"].remove(chan)
                     remoteServer["chans"][chan]["users"].remove(matches[0])
+
+                continue
 
             matches = re.search(r":(.*?) KICK (.*?) (.*?) (.*?) :(.*)", data)
             if matches:
@@ -1331,15 +1360,14 @@ def handleSocket(rawdata, sock):
 
                 remoteServer["chans"][matches[1]]["users"].remove(matches[2])
 
-
-        prevline = data
+                continue
 
 
 def tgPoll():
     bot.infinity_polling(allowed_updates=util.update_types)
 
 def main():
-    global sock, conf
+    global sock, conf, prevline
 
     print("Creating telegram polling thread.")
     threading.Thread(target=tgPoll, name='bot_infinity_polling', daemon=True).start()
@@ -1355,14 +1383,25 @@ def main():
 
         print("")
         while True:
+            JSONParser.update(localServer)
+
             data = sock.recv().decode("utf-8", "ignore")
             if not data: break
 
-            handleSocket(data, sock)
+            log("IRC RAW: {}".format(data))
+
+            if data[0] != ":":
+                data = prevline + data
+
+                handleSocket(data, sock)
+            else:
+                handleSocket(data, sock)
+            
+            prevline = data
 
     finally:
         print("\nWriting bridgestates.json")
-        JSONParser.writeLocalServerState(localServer)
+        JSONParser.writeLocalServerState()
         imgur.stopUploadThread()
 
         print("Error: IRC server closed the connection, exiting.")

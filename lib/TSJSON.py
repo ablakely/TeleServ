@@ -28,6 +28,7 @@ class TSJSON():
         self.confFile = conf
         self.stateFile = state
         self.appends    = []
+        self.localServer = {}
 
     def readCfg(self):
         f = open(self.confFile)
@@ -42,6 +43,9 @@ class TSJSON():
         return ret
 
     def loadLocalServerState(self):
+        if bool(self.localServer) != False:
+            return self.localServer
+
         if exists(self.stateFile):
             f = open(self.stateFile)
             ret = json.load(f)
@@ -51,12 +55,22 @@ class TSJSON():
             ret["uids"] = {}
             ret["chanmap"] = {}
 
+        self.localServer = ret
         return ret
 
-    def appendState(self, state):
+    def setState(self, state):
         self.appends.append(state)
 
-    def writeLocalServerState(self, localServer):
+    def getState(self, state):
+        if state in self.localServer:
+            return [state]
+
+        return None
+
+    def update(self, localServer):
+        self.localServer = localServer
+
+    def writeLocalServerState(self):
         if len(self.appends) > 0:
             for state in self.appends:
                 for key in state:
@@ -65,5 +79,5 @@ class TSJSON():
             self.appends = []
 
         f = open(self.stateFile, "w")
-        json.dump(localServer, f, indent=2)
+        json.dump(self.localServer, f, indent=2)
         f.close()

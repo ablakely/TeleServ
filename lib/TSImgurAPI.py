@@ -71,6 +71,8 @@ class TSImgurAPI():
         while True:
             if self.SHUTDOWN == True: break
 
+            time.sleep(0.1)
+
             for user in dict(self.uploadQueue):
                 if time.time() - self.uploadQueue[user]["last_update"] > 30:
                     # If no images from Telegram have been added to queue in more than 30
@@ -122,7 +124,7 @@ class TSImgurAPI():
         self.CLIENT.set_user_auth(self.CREDENTIALS["access_token"], self.CREDENTIALS["refresh_token"])
         self.AUTHORIZED = True
 
-        self.TSJSON.appendState({"IMGURCREDS": self.CREDENTIALS})
+        self.TSJSON.setState({"IMGURCREDS": self.CREDENTIALS})
         
         print("Starting imgur uploader thread...")
         self.startUploadThread()
