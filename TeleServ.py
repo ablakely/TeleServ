@@ -57,7 +57,6 @@ motd = """
 lastID = 0
 membID = 0
 sock = {}
-prevline = ""
 initalBurstSent = False
 logChannelJoined = False
 
@@ -1025,6 +1024,7 @@ def handleSocket(rawdata, sock):
                 remoteServer["chans"][matches[1]] = {}
                 remoteServer["chans"][matches[1]]["ts"] = matches[2]
                 remoteServer["chans"][matches[1]]["modes"] = []
+                remoteServer["chans"][matches[1]]["meta"] = {}
 
                 for mode in matches[3]:
                     if mode == "+": continue
@@ -1130,6 +1130,49 @@ def handleSocket(rawdata, sock):
                 remoteServer["uids"][matches[1]]["modes"] = matches[9]
                 remoteServer["uids"][matches[1]]["name"] = matches[10]
                 remoteServer["uids"][matches[1]]["chans"] = []
+                remoteServer["uids"][matches[1]]["meta"] = {}
+
+                continue
+
+            matches = re.search(r":(.*?) METADATA (.*?) (.*)", data)
+            if matches:
+                matches = matches.groups()
+                print(matches)
+                
+                if matches[1] in remoteServer["chans"]:
+                    submatch = re.search(r"(.*?) mlock :(.*)", matches[2])
+                    if submatch:
+                        submatch = submatch.groups()
+
+                        remoteServer["chans"][matches[1]]["meta"]["mlock"] = submatch[1].split()
+                        remoteServer["chans"][matches[1]]["meta"]["mslock-ts"] = submatch[0]
+
+                    submatch = re.search(r"(.*?) maxlist :(.*)", matches[2])
+                    if submatch:
+                        submatch = submatch.groups()
+
+                        remoteServer["chans"][matches[1]]["meta"]["maxlist"] = {}
+                        remoteServer["chans"][matches[1]]["meta"]["maxlist-ts"] = submatch[0]
+
+                        modes = submatch[1].split(" ")
+
+                        x = 1
+                        for i in range(len(modes)):
+                            if i == x: 
+                                x += 2
+                                continue
+
+                            remoteServer["chans"][matches[1]]["meta"]["maxlist"][modes[i]] = modes[x]
+
+                        
+
+                elif matches[1] in remoteServer["uids"]:
+                    submatch = re.search(r"accountname :(.*)", matches[2])
+                    if submatch:
+                        submatch = submatch.groups()
+
+                        remoteServer["uids"][matches[1]]["meta"]["accountname"] = submatch[0]
+
 
                 continue
 
@@ -1367,7 +1410,9 @@ def tgPoll():
     bot.infinity_polling(allowed_updates=util.update_types)
 
 def main():
-    global sock, conf, prevline
+    global sock, conf
+    
+    prevline = ""
 
     print("Creating telegram polling thread.")
     threading.Thread(target=tgPoll, name='bot_infinity_polling', daemon=True).start()
@@ -1385,7 +1430,7 @@ def main():
         while True:
             JSONParser.update(localServer)
 
-            data = sock.recv().decode("utf-8", "ignore")
+            data = sock.recv(4096).decode("utf-8", "ignore")
             if not data: break
 
             log("IRC RAW: {}".format(data))
