@@ -127,6 +127,8 @@ def tgUsernameFromUID(tuid):
     if tuid in localServer["uids"]:
         return localServer["uids"][tuid]["telegramuser"]
 
+    return False
+
 def tgUserInChannel(tgid, chan):
     tgid = str(tgid)
 
@@ -1387,9 +1389,10 @@ def handleSocket(rawdata, sock):
                     who = nickFromUID(matches[2])
 
                     if conf["TELEGRAM"]["enableMentions"] == True:
-                        who = "@" + tgUsernameFromUID(matches[2])
+                        if tgUsernameFromUID(matches[2]) != False:
+                            who = "@" + tgUsernameFromUID(matches[2])
 
-                    bot.send_message(to, "{} kicked {} (Reason: {})".format(
+                    bot.send_message(to, "⚫ {} kicked {} (Reason: {})".format(
                         nickFromUID(matches[0]),
                         who,
                         matches[4]
