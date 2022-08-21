@@ -13,12 +13,17 @@ by allowing users to have a constant connection to IRC.
 TeleServ should work with any IRCd that uses TS6 for it's linking protocol, it has been tested on:
 * InspIRCd 3.x (Protocol Version: 1205)
 
-## Installing & Usage
+## Installing
 1) Create a telegram bot \([tutorial](https://core.telegram.org/bots#6-botfather)\)
-1) Create a link block on the IRC server you'll be linking to.
-2) Edit `example.conf.json` and rename to `conf.json`
-3) `pip install pyTelegramBotAPI imgurpython`
-4) `python TeleServ.py`
+2) Create a link block on the IRC server you'll be linking to.
+3) Edit `example.conf.json` and rename to `conf.json`
+4) `pip install pyTelegramBotAPI imgurpython`
+5) `python TeleServ.py`
+
+## Usage
+1) Create a telegram group and add the bot to it.
+2) In the group use the `/setchan` command to link the group to an IRC channel.
+3) Use `/conn` to connect your user the IRC channel.
 
 ## Commands
 
@@ -29,6 +34,7 @@ TeleServ provides commands for both Telegram users and IRC operators.
 
 | Command      | Arguments       | Description                                                       |
 |--------------|-----------------|-------------------------------------------------------------------|
+| /help        | (none)          | Command list                                                      |
 | /conn        | (none)          | Connects a telegram user to the IRC server                        |
 | /setchan     | \<chan\>        | (Group Admin/Owner) Sets IRC destination channel                  |
 | /me          | \<action\>      | Action command (* User slaps mIRC with a large trout)             |
