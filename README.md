@@ -33,7 +33,7 @@ TeleServ provides commands for both Telegram users and IRC operators.
 | /setchan     | \<chan\>        | (Group Admin/Owner) Sets IRC destination channel                  |
 | /me          | \<action\>      | Action command (* User slaps mIRC with a large trout)             |
 | /notice      | \<msg\>         | Send a notice to an IRC user (or channel if no nick given)        |
-| /pm          | \<nick\>        | Creates a private chat with an IRC user (DM with bot only)        |
+| /pm          | \<nick\>        | Creates a private chat with an IRC user (private only)            |
 | /nick        | (nick)          | Change your IRC nick (replies with current if nick not given)     |
 | /names       | (none)          | List the users in the IRC channel                                 |
 | /photos      | (none)          | Lists the imgur albums the bot has created for you (private only) |

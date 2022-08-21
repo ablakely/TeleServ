@@ -493,7 +493,7 @@ def tgPhotosCmd(msg):
 Uploaded\: {album['date'].replace('-', '/')}
 Where\: {album['where'].replace('#', f'{chr(92)}#')}
 Photos\:
-        {" ".join([f"[{img['id']}](https://imgur.com/i/{img['id']})" for img in album['photos']])}
+        {" ".join([f"[{img['id']}](https://imgur.com/{img['id']})" for img in album['photos']])}
 
 DELETE THIS ALBUM\: `/deletealbum {album['id']}`
             """
