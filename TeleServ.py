@@ -61,10 +61,11 @@ initalBurstSent = False
 logChannelJoined = False
 
 remoteServer = {}
-remoteServer["capab"] = {}
-remoteServer["chans"] = {}
-remoteServer["uids"]  = {}
-remoteServer["opers"] = []
+remoteServer["capab"]   = {}
+remoteServer["chans"]   = {}
+remoteServer["uids"]    = {}
+remoteServer["opers"]   = []
+remoteServer["servers"] = {}
 
 noticeBuf = ""
 noticeBufMode = False
@@ -329,7 +330,8 @@ I am currently linking this chat to:
 *Group and DM Commands:*
  /me `\<action\>` \- Action command
  /notice `\<msg\>` \- Send a notice
- /nick `\<nickname\>` \- Change your nickname on IRC
+ /nick `\<nick\>` \- Change your nickname on IRC
+ /whois `\<nick\>` \- Lookup details about an IRC user
     
 Any other messaged will be relayed to the IRC channel or user\."""
 
@@ -511,6 +513,33 @@ def tgDeleteAlbumCmd(msg):
         else:
             bot.reply_to(msg, "Error cannot find {} album.".format(args[1]))
 
+@bot.message_handler(commands=['whois'])
+def tgWhoisCmd(msg):
+    if msg.chat.type not in ["private", "group"]: return
+
+    args = msg.text.split(" ")
+    if len(args) > 1:
+        uid = uidFromNick(args[1])
+        user = getUIDObj(uid)
+
+        if user != False or uid != False:
+            reply = f"""
+            {user['nick']} ({user['user']}@{user['host']}): {user['name']}
+Channels: {" ".join(user['chans'])}
+Server: {remoteServer['servers'][user['server']]['hostname']} :{remoteServer['servers'][user['server']]['description']}
+Modes: {user['modes']}
+"""
+
+            if "accountname" in user["meta"]:
+                reply += f"Account: {user['meta']['accountname']}\n"
+
+            if "opertype" in user:
+                reply += f"IRC Operator: {user['opertype']}\n"
+
+            bot.reply_to(msg, reply)
+        else:
+            bot.reply_to(msg, f"Error: {args[1]} no such nickname.")
+
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
@@ -647,7 +676,7 @@ def photo(msg):
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(link, msg.from_user.username, msg.chat.id))
 
     imgur.upload(files, nick, msg.from_user.id, src, msg.caption if msg.caption else "", msg, callback)
-    
+
 
 #
 # Handle our connection to the IRC Server
@@ -1042,15 +1071,38 @@ def handleSocket(rawdata, sock):
             matches = re.search(r"SERVER (.*?) (.*?) 0 (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
-                remoteServer["hostname"] = matches[0]
-                remoteServer["recvkey"] = matches[1]
-                remoteServer["SID"] = matches[2]
-                remoteServer["description"] = matches[3]
+
+                if matches[1] != conf["IRC"]["recvkey"]:
+                    ircOut(sock, ":DIE Invalid recvkey.")
+
+                remoteServer["servers"][matches[2]] = {}
+                remoteServer["servers"][matches[2]]["hostname"] = matches[0]
+                remoteServer["servers"][matches[2]]["SID"] = matches[2]
+                remoteServer["servers"][matches[2]]["description"] = matches[3]
 
                 if initalBurstSent == False:
                     sendIRCBurst(sock)
                     initalBurstSent = True
 
+                continue
+
+            # :214 SERVER atlanta.ephasic.org 228 hidden=0 :[Atlanta, GA] Do something unusual today.  Pay a bill.
+
+            matches = re.search(r"(.*?) SERVER (.*?) (.*?) (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                remoteServer["servers"][matches[2]] = {}
+                remoteServer["servers"][matches[2]]["hostname"] = matches[1]
+                remoteServer["servers"][matches[2]]["SID"] = matches[2]
+                remoteServer["servers"][matches[2]]["description"] = matches[4]
+                remoteServer["servers"][matches[2]]["modes"] = {}
+
+                tmp = matches[3].split(" ")
+                for i in range(len(tmp)):
+                    args = tmp[i].split("=")
+
+                    remoteServer["servers"][matches[2]]["modes"][args[0]] = args[1]
                 continue
 
             matches = re.search(r":(.*?) FJOIN (.*?) (\d+) (.*?) :(.*)", data)
@@ -1156,6 +1208,7 @@ def handleSocket(rawdata, sock):
             if matches:
                 matches = matches.groups()
                 remoteServer["uids"][matches[1]] = {}
+                remoteServer["uids"][matches[1]]["server"] = matches[0]
                 remoteServer["uids"][matches[1]]["ts"] = matches[2]
                 remoteServer["uids"][matches[1]]["nick"] = matches[3]
                 remoteServer["uids"][matches[1]]["ip"] = matches[4]
@@ -1338,6 +1391,9 @@ def handleSocket(rawdata, sock):
             if matches:
                 matches = matches.groups()
                 remoteServer["opers"].append(matches[0])
+
+                if matches[0] in remoteServer["uids"]:
+                    remoteServer["uids"][matches[0]]["opertype"] = matches[1]
 
                 continue
 
