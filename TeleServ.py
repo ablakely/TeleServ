@@ -1396,6 +1396,7 @@ def handleSocket(rawdata, sock):
             matches = re.search(r":(.*?) QUIT (.*)", data)
             if matches:
                 matches = matches.groups()
+                if matches[0] not in remoteServer["uids"]: continue
 
                 for chan in remoteServer["uids"][matches[0]]["chans"]:
                     if chan in localServer["chanmap"]:
@@ -1405,9 +1406,13 @@ def handleSocket(rawdata, sock):
                             bot.send_message(to, "⬅️ {} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
                         else:
                             bot.send_message(to, "⬅️ {} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
-                    
-                    remoteServer["uids"][matches[0]]["chans"].remove(chan)
-                    remoteServer["chans"][chan]["users"].remove(matches[0])
+
+                    if "chans" in remoteServer["uids"][matches[0]]:
+                        if chan in remoteServer["uids"][matches[0]]["chans"]:                
+                            remoteServer["uids"][matches[0]]["chans"].remove(chan)
+
+                    if matches[0] in remoteServer["chans"][chan]["users"]:
+                        remoteServer["chans"][chan]["users"].remove(matches[0])
 
                 continue
 
