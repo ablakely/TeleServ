@@ -323,6 +323,8 @@ I am currently linking this chat to:
 
 *DM Commands:*
  /pm `\<nick\>` \- Create a private chat with an IRC user
+ /photos \- Lists the images the bot has upploaded to Imgur for you
+ /deletealbum `\<album id\>` \- Delete an Imgur album
 
 *Group and DM Commands:*
  /me `\<action\>` \- Action command
@@ -479,6 +481,37 @@ def tgNamesCmd(msg):
 
     bot.reply_to(msg, "Users on {} ({} Users):\n{}".format(chan, len(userlist), " ".join(userlist)))
 
+@bot.message_handler(commands=['photos'])
+def tgPhotosCmd(msg):
+    if msg.chat.type != "private": return
+
+    albums = imgur.getImgurAlbums(msg.from_user.id)
+    if albums != False:
+        for album in albums:
+            reply = f"""
+            *Album\: [{album['id']}](https://imgur.com/a/{album['id']})*
+Uploaded\: {album['date'].replace('-', '/')}
+Where\: {album['where'].replace('#', f'{chr(92)}#')}
+Photos\:
+        {" ".join([f"[{img['id']}](https://imgur.com/i/{img['id']})" for img in album['photos']])}
+
+DELETE THIS ALBUM\: `/deletealbum {album['id']}`
+            """
+
+            bot.reply_to(msg, reply,  parse_mode="MarkdownV2")
+
+@bot.message_handler(commands=['deletealbum'])
+def tgDeleteAlbumCmd(msg):
+    if msg.chat.type != "private": return
+
+    args = msg.text.split(" ")
+    if len(args) > 1:
+        if imgur.deleteImgurAlbum(args[1], msg.from_user.id) == True:
+            bot.reply_to(msg, "Album deleted.")
+        else:
+            bot.reply_to(msg, "Error cannot find {} album.".format(args[1]))
+
+
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
     global sock, localServer
@@ -613,7 +646,7 @@ def photo(msg):
 
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(link, msg.from_user.username, msg.chat.id))
 
-    imgur.upload(files, nick, src, msg.caption if msg.caption else "", msg, callback)
+    imgur.upload(files, nick, msg.from_user.id, src, msg.caption if msg.caption else "", msg, callback)
     
 
 #
@@ -1139,7 +1172,6 @@ def handleSocket(rawdata, sock):
             matches = re.search(r":(.*?) METADATA (.*?) (.*)", data)
             if matches:
                 matches = matches.groups()
-                print(matches)
                 
                 if matches[1] in remoteServer["chans"]:
                     submatch = re.search(r"(.*?) mlock :(.*)", matches[2])
@@ -1448,9 +1480,9 @@ def main():
             prevline = data
 
     finally:
+        imgur.stopUploadThread()
         print("\nWriting bridgestates.json")
         JSONParser.writeLocalServerState()
-        imgur.stopUploadThread()
 
         print("Error: IRC server closed the connection, exiting.")
         sock.close()

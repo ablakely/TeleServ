@@ -63,7 +63,7 @@ class TSJSON():
 
     def getState(self, state):
         if state in self.localServer:
-            return [state]
+            return self.localServer[state]
 
         return None
 
@@ -74,7 +74,7 @@ class TSJSON():
         if len(self.appends) > 0:
             for state in self.appends:
                 for key in state:
-                    localServer[key] = state[key]
+                    self.localServer[key] = state[key]
 
             self.appends = []
 

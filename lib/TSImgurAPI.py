@@ -53,6 +53,11 @@ class TSImgurAPI():
 
         state = JSONParser.loadLocalServerState()
 
+        if "IMGURUPLOADS" not in state:
+            self.imgUploads = {}
+        else:
+            self.imgUploads = state["IMGURUPLOADS"]
+
         if "IMGURCREDS" not in state:
             self.CLIENT = ImgurClient(opts["API_ID"], opts["API_SECRET"])
             self.AUTHORIZED = False
@@ -84,6 +89,9 @@ class TSImgurAPI():
                 elif self.uploadQueue[user]["started"] == True: 
                     return
                 elif time.time() - self.uploadQueue[user]["last_update"] > 4:
+                    if self.uploadQueue[user]["tgid"] not in self.imgUploads:
+                        self.imgUploads[self.uploadQueue[user]["tgid"]] = { "albums": [] }
+
                     imgdata = []
                     self.uploadQueue[user]["started"] == True
 
@@ -110,6 +118,23 @@ class TSImgurAPI():
 
                     self.uploadQueue[user]["callback"](self.uploadQueue[user]["msg"], albumdata)
 
+                    photos = []
+
+                    for i in range(len(imgdata)):
+                        photos.append({
+                            "id": imgdata[i]["id"],
+                            "deletehash": imgdata[i]["deletehash"]
+                        })
+
+                    self.imgUploads[self.uploadQueue[user]["tgid"]]["albums"].append({
+                        "description": self.uploadQueue[user]["desc"],
+                        "date": time.strftime("%I:%M %p on %d-%m-%Y", time.localtime()),
+                        "where": tmp[1],
+                        "id": albumdata["id"],
+                        "deletehash": albumdata["deletehash"],
+                        "photos": photos
+                    })
+
                     for path in self.uploadQueue[user]["imgs"]:
                         os.remove(f"/tmp/{path}")
 
@@ -118,6 +143,30 @@ class TSImgurAPI():
 
     def startUploadThread(self):
         threading.Thread(target=self.thread_wrapper, name="imgur_uploader", daemon=False).start()
+
+    def getImgurAlbums(self, tgid):
+        tgid = str(tgid)
+
+        if tgid in self.imgUploads:
+            return self.imgUploads[tgid]["albums"]
+
+        return False
+
+    def deleteImgurAlbum(self, albumid, tgid):
+        tgid = str(tgid)
+
+        if tgid in self.imgUploads:
+            for i in range(len(self.imgUploads[tgid]["albums"])):
+                if albumid == self.imgUploads[tgid]["albums"][i]["id"]:
+                    for photo in self.imgUploads[tgid]["albums"][i]["photos"]:
+                        self.CLIENT.delete_image(photo["id"])
+
+                    self.CLIENT.album_delete(albumid)
+                    del(self.imgUploads[tgid]["albums"][i])
+
+                    return True
+
+        return False
 
     def getAuthTokens(self, pin):
         self.CREDENTIALS = self.CLIENT.authorize(pin, 'pin')
@@ -129,7 +178,7 @@ class TSImgurAPI():
         print("Starting imgur uploader thread...")
         self.startUploadThread()
 
-    def upload(self, files, username, source, caption, msg, callback):
+    def upload(self, files, username, tgid, source, caption, msg, callback):
         if self.ENABLED == False: return
 
         if source != False:
@@ -150,6 +199,7 @@ class TSImgurAPI():
         self.uploadQueue[username]["callback"] = callback
         self.uploadQueue[username]["msg"] = msg
         self.uploadQueue[username]["started"] = False
+        self.uploadQueue[username]["tgid"] = str(tgid)
 
         for path in files:
             self.uploadQueue[username]["imgs"].append(path)
@@ -161,4 +211,5 @@ class TSImgurAPI():
         return self.AUTHORIZED
 
     def stopUploadThread(self):
+        self.TSJSON.setState({"IMGURUPLOADS": self.imgUploads})
         self.SHUTDOWN = True
