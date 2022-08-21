@@ -1463,12 +1463,10 @@ def handleSocket(rawdata, sock):
                         else:
                             bot.send_message(to, "⬅️ {} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
 
-                    if "chans" in remoteServer["uids"][matches[0]]:
-                        if chan in remoteServer["uids"][matches[0]]["chans"]:                
-                            remoteServer["uids"][matches[0]]["chans"].remove(chan)
-
                     if matches[0] in remoteServer["chans"][chan]["users"]:
                         remoteServer["chans"][chan]["users"].remove(matches[0])
+
+                del(remoteServer["uids"][matches[0]])
 
                 continue
 
