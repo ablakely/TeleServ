@@ -223,11 +223,11 @@ def uidFromNick(nick):
         return nick
 
     for uid in localServer["uids"]:
-        if nick == localServer["uids"][uid]["nick"]:
+        if nick.lower() == localServer["uids"][uid]["nick"].lower():
             return uid
 
     for uid in remoteServer["uids"]:
-        if nick == remoteServer["uids"][uid]["nick"]:
+        if nick.lower() == remoteServer["uids"][uid]["nick"].lower():
             return uid
 
     return False
