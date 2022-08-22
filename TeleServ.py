@@ -194,6 +194,8 @@ def createTGUser(msg):
         localServer["uids"][uid]["user"]         = user
         localServer["uids"][uid]["host"]         = host
         localServer["uids"][uid]["pm"]           = ""
+        localServer["uids"][uid]["server"]       = conf["IRC"]["sid"]
+        localServer["uids"][uid]["modes"]        = "+i"
         localServer["uids"][uid]["chans"]        = []
     
     
@@ -530,8 +532,9 @@ Server: {remoteServer['servers'][user['server']]['hostname']} :{remoteServer['se
 Modes: {user['modes']}
 """
 
-            if "accountname" in user["meta"]:
-                reply += f"Account: {user['meta']['accountname']}\n"
+            if "meta" in user:
+                if "accountname" in user["meta"]:
+                    reply += f"Account: {user['meta']['accountname']}\n"
 
             if "opertype" in user:
                 reply += f"IRC Operator: {user['opertype']}\n"
@@ -876,6 +879,9 @@ def rejoinTGUsers(sock):
     global localServer
 
     for uid in localServer["uids"]:
+        localServer["uids"][uid]["server"] = conf["IRC"]["sid"]
+        localServer["uids"][uid]["modes"]  = "+i"
+
         username = localServer["uids"][uid]["name"].split(" ")[0][0:int(remoteServer["capab"]["IDENTMAX"])].lower()
         nick     = localServer["uids"][uid]["nick"]
         host     = "t.me/{}".format(localServer["uids"][uid]["telegramuser"])[0:int(remoteServer["capab"]["MAXHOST"])]
@@ -890,10 +896,16 @@ def rejoinTGUsers(sock):
             joinIRCUser(sock, nick, ichan, "v")
 
 def sendIRCAuth(sock):
+    global remoteServer
+
     ircOut(sock, "CAPAB START 1205")
     ircOut(sock, "CAPAB END")
     ircOut(sock, "SERVER {} {} 0 {} :{}".format(conf["IRC"]["name"], conf["IRC"]["sendkey"], conf["IRC"]["sid"], conf["IRC"]["description"]))
 
+    remoteServer["servers"][conf["IRC"]["sid"]] = {}
+    remoteServer["servers"][conf["IRC"]["sid"]]["hostname"]    = conf["IRC"]["name"]
+    remoteServer["servers"][conf["IRC"]["sid"]]["SID"]         = conf["IRC"]["sid"]
+    remoteServer["servers"][conf["IRC"]["sid"]]["description"] = conf["IRC"]["description"]
 
 def sendIRCBurst(sock):
     ircOut(sock, ":{} BURST".format(conf["IRC"]["sid"]))
@@ -908,6 +920,8 @@ def sendIRCBurst(sock):
     localServer["uids"][uid]["telegramuser"] = ""
     localServer["uids"][uid]["telegramid"] = 0
     localServer["uids"][uid]["lastmsg"] = 0
+    localServer["uids"][uid]["server"] = conf["IRC"]["sid"]
+    localServer["uids"][uid]["modes"] = "+io"
     localServer["uids"][uid]["chans"] = []
 
     JSONParser.writeLocalServerState()
