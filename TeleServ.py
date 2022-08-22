@@ -523,11 +523,16 @@ def tgWhoisCmd(msg):
     if len(args) > 1:
         uid = uidFromNick(args[1])
         user = getUIDObj(uid)
+        chans = ""
+
+        for chan in user["chans"]:
+            if ["p", None] not in remoteServer["chans"][chan]["modes"] and ["s", None] not in remoteServer["chans"][chan]["modes"]:
+                chans += f"{chan} "
 
         if user != False or uid != False:
             reply = f"""
             {user['nick']} ({user['user']}@{user['host']}): {user['name']}
-Channels: {" ".join(user['chans'])}
+Channels: {chans}
 Server: {remoteServer['servers'][user['server']]['hostname']} :{remoteServer['servers'][user['server']]['description']}
 Modes: {user['modes']}
 """
@@ -537,7 +542,7 @@ Modes: {user['modes']}
                     reply += f"Account: {user['meta']['accountname']}\n"
 
             if "opertype" in user:
-                reply += f"IRC Operator: {user['opertype']}\n"
+                reply += f"{user['opertype']} on {conf['IRC']['network']}\n"
 
             bot.reply_to(msg, reply)
         else:
@@ -916,12 +921,15 @@ def sendIRCBurst(sock):
 
     localServer["uids"][uid] = {}
     localServer["uids"][uid]["nick"] = conf["IRC"]["nick"]
+    localServer["uids"][uid]["user"] = conf["IRC"]["nick"]
+    localServer["uids"][uid]["host"] = conf["IRC"]["name"]
     localServer["uids"][uid]["name"] = "Telegram IRC Bridge"
     localServer["uids"][uid]["telegramuser"] = ""
     localServer["uids"][uid]["telegramid"] = 0
     localServer["uids"][uid]["lastmsg"] = 0
     localServer["uids"][uid]["server"] = conf["IRC"]["sid"]
     localServer["uids"][uid]["modes"] = "+io"
+    localServer["uids"][uid]["opertype"] = "Service"
     localServer["uids"][uid]["chans"] = []
 
     JSONParser.writeLocalServerState()
