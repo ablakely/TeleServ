@@ -102,7 +102,7 @@ class TSImgurAPI():
                     forStr = f"{tmp[0]} in {tmp[1]}"
 
                     config = {
-                        "title": "Uploaded by TeleServ for {} at {}".format(forStr, time.strftime("%I:%M %p on %d-%m-%Y", time.localtime())),
+                        "title": "Uploaded by TeleServ for {} at {}".format(forStr, time.strftime("%I:%M %p on %m/%d/%Y", time.localtime())),
                         "description": self.uploadQueue[user]["desc"],
                         "privacy": "hidden"
                     }

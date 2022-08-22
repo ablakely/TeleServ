@@ -196,6 +196,7 @@ def createTGUser(msg):
         localServer["uids"][uid]["pm"]           = ""
         localServer["uids"][uid]["server"]       = conf["IRC"]["sid"]
         localServer["uids"][uid]["modes"]        = "+i"
+        localServer["uids"][uid]["ts"]           = time.time()
         localServer["uids"][uid]["chans"]        = []
     
     
@@ -525,6 +526,8 @@ def tgWhoisCmd(msg):
         user = getUIDObj(uid)
         chans = ""
 
+        signontime = time.strftime("%I:%M %p on %m/%d/%Y", time.localtime(float(user["ts"])))
+
         for chan in user["chans"]:
             if ["p", None] not in remoteServer["chans"][chan]["modes"] and ["s", None] not in remoteServer["chans"][chan]["modes"]:
                 chans += f"{chan} "
@@ -533,8 +536,9 @@ def tgWhoisCmd(msg):
             reply = f"""
             {user['nick']} ({user['user']}@{user['host']}): {user['name']}
 Channels: {chans}
-Server: {remoteServer['servers'][user['server']]['hostname']} :{remoteServer['servers'][user['server']]['description']}
+Server: {remoteServer['servers'][user['server']]['hostname']} - {remoteServer['servers'][user['server']]['description']}
 Modes: {user['modes']}
+Sign on: {signontime}
 """
 
             if "meta" in user:
@@ -886,6 +890,7 @@ def rejoinTGUsers(sock):
     for uid in localServer["uids"]:
         localServer["uids"][uid]["server"] = conf["IRC"]["sid"]
         localServer["uids"][uid]["modes"]  = "+i"
+        localServer["uids"][uid]["ts"]     = time.time()
 
         username = localServer["uids"][uid]["name"].split(" ")[0][0:int(remoteServer["capab"]["IDENTMAX"])].lower()
         nick     = localServer["uids"][uid]["nick"]
@@ -930,6 +935,7 @@ def sendIRCBurst(sock):
     localServer["uids"][uid]["server"] = conf["IRC"]["sid"]
     localServer["uids"][uid]["modes"] = "+io"
     localServer["uids"][uid]["opertype"] = "Service"
+    localServer["uids"][uid]["ts"] = time.time()
     localServer["uids"][uid]["chans"] = []
 
     JSONParser.writeLocalServerState()
@@ -1147,10 +1153,13 @@ def handleSocket(rawdata, sock):
                         usermatch = usermatch.groups()
 
                         useruid = usermatch[1].split(":")[0]
-                        remoteServer["chans"][matches[1]]["users"].append(useruid)
+
+                        if useruid not in remoteServer["chans"][matches[1]]["users"]:
+                            remoteServer["chans"][matches[1]]["users"].append(useruid)
 
                         if useruid in remoteServer["uids"]:
-                            remoteServer["uids"][useruid]["chans"].append(matches[1])
+                            if matches[1] not in remoteServer["uids"][useruid]["chans"]:
+                                remoteServer["uids"][useruid]["chans"].append(matches[1])
 
                             if usermatch[0] != "":
                                 remoteServer["chans"][matches[1]]["modes"].append([usermatch[0], useruid])
