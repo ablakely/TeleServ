@@ -324,6 +324,7 @@ I am currently linking this chat to:
  /setchan `\<channel\>` \- \[Admin\] Set destination IRC channel for group
  /conn \- Creates an IRC client with your username \({user}\)
  /names \- List the IRC users in the channel
+ /topic \- Fetch the channel topic
 
 *DM Commands:*
  /pm `\<nick\>` \- Create a private chat with an IRC user
@@ -540,7 +541,6 @@ Server: {remoteServer['servers'][user['server']]['hostname']} - {remoteServer['s
 Modes: {user['modes']}
 Sign on: {signontime}
 """
-
             if "meta" in user:
                 if "accountname" in user["meta"]:
                     reply += f"Account: {user['meta']['accountname']}\n"
@@ -548,10 +548,27 @@ Sign on: {signontime}
             if "opertype" in user:
                 reply += f"{user['opertype']} on {conf['IRC']['network']}\n"
 
+            if "away" in user:
+                reply += "Away (since {}): {}\n".format(time.strftime("%I:%M %p %m/%d/%Y", time.localtime(float(user["away"]["ts"]))), user["away"]["reason"])
+
             bot.reply_to(msg, reply)
         else:
             bot.reply_to(msg, f"Error: {args[1]} no such nickname.")
 
+@bot.message_handler(commands=['topic'])
+def tgTopicCmd(msg):
+    if msg.chat.type != "group": return
+
+    chan = channelFromTGID(msg.chat.id)
+
+    if chan == False: return
+
+    if remoteServer["chans"][chan]["topic"]:
+        t = remoteServer["chans"][chan]["topic"]
+
+        bot.reply_to(msg, "Topic for {}:\n\n{}\n\nSet by {} at {}".format(chan, t["text"], t["who"], time.strftime("%I:%M %p on %m/%d/%Y", time.localtime(float(t["ts1"])))))
+    else:
+        bot.reply_to(msg, f"No topic set for {chan}")
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
@@ -641,7 +658,6 @@ def photo(msg):
     for photo in msg.photo:
         cnt += 1
 
-        # Every 4th element in msg.photo is the original sized image
         if cnt == len(msg.photo):
             file_info = bot.get_file(photo.file_id)
             downloaded_file = bot.download_file(file_info.file_path)
@@ -1140,6 +1156,7 @@ def handleSocket(rawdata, sock):
                 remoteServer["chans"][matches[1]]["ts"] = matches[2]
                 remoteServer["chans"][matches[1]]["modes"] = []
                 remoteServer["chans"][matches[1]]["meta"] = {}
+                remoteServer["chans"][matches[1]]["topic"] = {}
 
                 for mode in matches[3]:
                     if mode == "+": continue
@@ -1163,6 +1180,17 @@ def handleSocket(rawdata, sock):
 
                             if usermatch[0] != "":
                                 remoteServer["chans"][matches[1]]["modes"].append([usermatch[0], useruid])
+
+                continue
+
+            matches = re.search(r":(.*?) FTOPIC (.*?) (.*?) (.*?) (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                remoteServer["chans"][matches[1]]["topic"]["ts"]   = matches[2]
+                remoteServer["chans"][matches[1]]["topic"]["ts1"]  = matches[3]
+                remoteServer["chans"][matches[1]]["topic"]["who"]  = matches[4]
+                remoteServer["chans"][matches[1]]["topic"]["text"] = matches[5]
 
                 continue
 
@@ -1530,6 +1558,27 @@ def handleSocket(rawdata, sock):
 
                 continue
 
+            matches = re.search(r":(.*?) AWAY (.*?) :(.*)", data)
+            if matches:
+                matches = matches.groups()
+
+                if matches[0] in remoteServer["uids"]:
+                    remoteServer["uids"][matches[0]]["away"] = {
+                        "ts": matches[1],
+                        "reason": matches[2]
+                    }
+
+                continue
+            
+            matches = re.search(r":(.*?) AWAY", data)
+            if matches:
+                matches = matches.groups()
+
+                if matches[0] in remoteServer["uids"]:
+                    if "away" in remoteServer["uids"][matches[0]]:
+                        del(remoteServer["uids"][matches[0]]["away"])
+
+                continue
 
 def tgPoll():
     bot.infinity_polling(allowed_updates=util.update_types)

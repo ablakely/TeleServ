@@ -41,6 +41,7 @@ TeleServ provides commands for both Telegram users and IRC operators.
 | /notice      | \<msg\>         | Send a notice to an IRC user (or channel if no nick given)        |
 | /pm          | \<nick\>        | Creates a private chat with an IRC user (private only)            |
 | /nick        | (nick)          | Change your IRC nick (replies with current if nick not given)     |
+| /topic       | (none)          | Fetch the topic for the IRC channel                               |
 | /names       | (none)          | List the users in the IRC channel                                 |
 | /whois       | \<nick\>        | Lookup details about an IRC user                                  |
 | /photos      | (none)          | Lists the imgur albums the bot has created for you (private only) |
