@@ -1,4 +1,4 @@
-# TSJSON.py: JSON config and states module for TeleServ
+# JSON.py: JSON config and states module for TeleServ
 #
 # TeleServ - Telegram to IRC bridge server
 #

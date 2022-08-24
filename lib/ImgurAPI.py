@@ -1,4 +1,4 @@
-# TSImgurAPI.py: Imgur API module for TeleServ
+# ImgurAPI.py: Imgur API module for TeleServ
 #
 # This implements an upload queue system to handle the async calls from pyTelegramAPI
 # It does so by using a thread that checks time elapsed since last image from

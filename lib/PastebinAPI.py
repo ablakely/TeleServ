@@ -1,4 +1,4 @@
-# TSPastebinAPI.py: Pastebin API module for TeleServ
+# PastebinAPI.py: Pastebin API module for TeleServ
 #
 # TeleServ - Telegram to IRC bridge server
 #

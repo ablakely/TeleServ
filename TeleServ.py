@@ -21,13 +21,15 @@
 
 import re
 from telebot import TeleBot,types,util,custom_filters
-from lib.TSPastebinAPI import TSPastebinAPI
-from lib.TSImgurAPI import TSImgurAPI
-from lib.TSJSON import TSJSON
+from lib.PastebinAPI import TSPastebinAPI
+from lib.ImgurAPI import TSImgurAPI
+from lib.JSON import TSJSON
+from lib.TGMessageQueue import TGMessageQueue
 import socket
 import ssl
 import time
 import threading
+import traceback
 
 motd = """
 @@@@@@@@@@@@@@@@@@@@@@@(*#@@@@@@@@@@@@@@@@@@@@@@@@
@@ -90,6 +92,7 @@ else:
 localServer = JSONParser.loadLocalServerState()
 
 bot = TeleBot(conf["TELEGRAM"]["API_KEY"])
+msgqueue = TGMessageQueue(bot)
 
 class IsAdmin(custom_filters.SimpleCustomFilter):
     key = 'is_chat_admin'
@@ -168,7 +171,7 @@ def createTGUser(msg):
 
     if msg.chat.type != "group": return
     if not msg.from_user.username:
-        bot.reply_to(msg, "Error: You currently don't have a username set.")
+        msgqueue.reply_to(msg, "Error: You currently don't have a username set.")
         return False
 
     name = msg.from_user.first_name
@@ -176,7 +179,7 @@ def createTGUser(msg):
         name += " " + msg.from_user.last_name
 
     if userIDFromTGID == False:
-        bot.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
+        msgqueue.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
    
         nick = msg.from_user.username[0:int(remoteServer["capab"]["NICKMAX"])]
@@ -202,7 +205,7 @@ def createTGUser(msg):
     
     if tgUserInChannel(msg.from_user.id, channelFromTGID(msg.chat.id)) == False:
         if checkBan(nickFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id)) == True:
-            bot.reply_to(msg, "Cannot connect you to {}, you are banned.".format(channelFromTGID(msg.chat.id)))
+            msgqueue.reply_to(msg, "Cannot connect you to {}, you are banned.".format(channelFromTGID(msg.chat.id)))
             return
 
         joinIRCUser(sock, userIDFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
@@ -210,9 +213,9 @@ def createTGUser(msg):
         if channelFromTGID(msg.chat.id) not in localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"]:
             localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
 
-        bot.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id)))
+        msgqueue.reply_to(msg, "Connecting you to {}".format(channelFromTGID(msg.chat.id)))
     else:
-        bot.reply_to(msg, "You are already in this IRC channel.")
+        msgqueue.reply_to(msg, "You are already in this IRC channel.")
 
     JSONParser.writeLocalServerState()
 
@@ -347,7 +350,7 @@ Any other messaged will be relayed to the IRC channel or user\."""
 
     startMsg = startMsg.format(server=conf["IRC"]["server"].replace(".", "\."), user=msg.from_user.username, chan=chan)
     
-    bot.reply_to(msg, startMsg, parse_mode="MarkdownV2")
+    msgqueue.reply_to(msg, startMsg, parse_mode="MarkdownV2")
 
 
 @bot.message_handler(commands=['setchan'], is_chat_admin=True)
@@ -358,14 +361,14 @@ def setChan(msg):
 
     args = msg.text.split()
     if len(args) > 1:
-        bot.reply_to(msg, "Setting IRC channel to {}".format(args[1]))
+        msgqueue.reply_to(msg, "Setting IRC channel to {}".format(args[1]))
 
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Setting IRC channel to {} for Telegram group: {}".format(args[1], msg.chat.id))
 
         localServer["chanmap"][args[1]] = str(msg.chat.id)
         JSONParser.writeLocalServerState()
     else:
-        bot.reply_to(msg, "Usage: /setchan <IRC channel")
+        msgqueue.reply_to(msg, "Usage: /setchan <IRC channel")
 
 @bot.message_handler(commands=['conn'])
 def conn(msg):
@@ -378,11 +381,11 @@ def tgSendIRCAction(msg):
     to = findIRCUserFromMSG(msg)
 
     if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), to) == False:
-        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+        msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
-        bot.reply_to(msg, "You have not created a private message with a user")
+        msgqueue.reply_to(msg, "You have not created a private message with a user")
         return
     
     tmp = msg.text.split(" ")
@@ -400,44 +403,44 @@ def tgSendIRCNotice(msg):
 
     if msg.chat.type != "group" and msg.chat.type != "private": return
     if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), to) == False:
-        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+        msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
-        bot.reply_to(msg, "You have not created a private message with a user")
+        msgqueue.reply_to(msg, "You have not created a private message with a user")
         return
 
     if checkBan(nickFromTGID(msg.from_user.id), to) == True:
-        bot.reply_to(msg, "Cannot send message to {}, you are banned.")
+        msgqueue.reply_to(msg, "Cannot send message to {}, you are banned.")
         return
 
     args = msg.text.split()
     if len(args) > 1:
         sendIRCNotice(sock, userIDFromTGID(msg.from_user.id), to, " ".join(args[1:]))
     else:
-        bot.reply_to(msg, "Usage: /notice <msg> to send a notice to channel or /notice <who> <msg> to send a notice to a user.")
+        msgqueue.reply_to(msg, "Usage: /notice <msg> to send a notice to channel or /notice <who> <msg> to send a notice to a user.")
 
 @bot.message_handler(commands=['pm'])
 def tgSetPM(msg):
     global sock, localServer
 
     if msg.chat.type != "private":
-        bot.reply_to(msg, "This command is to be used when directly messaging me.")
+        msgqueue.reply_to(msg, "This command is to be used when directly messaging me.")
         return
 
     if userIDFromTGID(msg.from_user.id) == False:
-        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+        msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     args = msg.text.split()
     if len(args) > 1:
         for uid in remoteServer["uids"]:
             if args[1] == remoteServer["uids"][uid]["nick"]:
-                bot.reply_to(msg, "I will now send your messages in this chat to {}".format(args[1]))
+                msgqueue.reply_to(msg, "I will now send your messages in this chat to {}".format(args[1]))
                 setTGUserPM(msg.from_user.id, uid)
                 return
 
-        bot.reply_to(msg, "{} doesn't appear to be online.".format(args[1]))
+        msgqueue.reply_to(msg, "{} doesn't appear to be online.".format(args[1]))
         if tgUserPMOpen(msg.from_user.id) == True:
             setTGUserPM(msg.from_user.id, "")
 
@@ -446,7 +449,7 @@ def tgSetNick(msg):
     global sock, localServer
 
     if userIDFromTGID(msg.from_user.id) == False:
-        bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+        msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
     args = msg.text.split()
@@ -454,29 +457,29 @@ def tgSetNick(msg):
         uid = userIDFromTGID(msg.from_user.id)
 
         if len(args[1]) > int(remoteServer["capab"]["NICKMAX"]):
-            bot.reply_to(msg, "Error: Nicknames cannot be longer than {} characters.".format(remoteServer["capab"]["NICKMAX"]))
+            msgqueue.reply_to(msg, "Error: Nicknames cannot be longer than {} characters.".format(remoteServer["capab"]["NICKMAX"]))
             return
 
         if re.match(r"[A-z_\-\[\]\\^{}|`][A-z0-9_\-\[\]\\^{}|`]*", args[1]):
             if uidFromNick(args[1]) == False:
                 localServer["uids"][uid]["nick"] = args[1]
                 ircOut(sock, ":{} NICK {} :{}".format(uid, args[1], int(time.time())))
-                bot.reply_to(msg, "You are now known as {}".format(args[1]))
+                msgqueue.reply_to(msg, "You are now known as {}".format(args[1]))
 
                 JSONParser.writeLocalServerState()
             else:
-                bot.reply_to(msg, "{} is in use.".format(args[1]))
+                msgqueue.reply_to(msg, "{} is in use.".format(args[1]))
         else:
-            bot.reply_to(msg, "Nick contains invalid characters.")
+            msgqueue.reply_to(msg, "Nick contains invalid characters.")
     else:
-        bot.reply_to(msg, "Your current nick is: {}".format(nickFromTGID(msg.from_user.id)))
+        msgqueue.reply_to(msg, "Your current nick is: {}".format(nickFromTGID(msg.from_user.id)))
 
 @bot.message_handler(commands=['names','users'])
 def tgNamesCmd(msg):
     if msg.chat.type != "group": return
 
     if channelFromTGID(msg.chat.id) == False:
-        bot.reply_to(msg, "I am not linking this group to an IRC channel.")
+        msgqueue.reply_to(msg, "I am not linking this group to an IRC channel.")
         return
 
     chan = channelFromTGID(msg.chat.id)
@@ -485,7 +488,7 @@ def tgNamesCmd(msg):
     for user in remoteServer["chans"][chan]["users"]:
         userlist.append(" {}".format(nickFromUID(user)))
 
-    bot.reply_to(msg, "Users on {} ({} Users):\n{}".format(chan, len(userlist), " ".join(userlist)))
+    msgqueue.reply_to(msg, "Users on {} ({} Users):\n{}".format(chan, len(userlist), " ".join(userlist)))
 
 @bot.message_handler(commands=['photos'])
 def tgPhotosCmd(msg):
@@ -504,7 +507,7 @@ Photos\:
 DELETE THIS ALBUM\: `/deletealbum {album['id']}`
             """
 
-            bot.reply_to(msg, reply,  parse_mode="MarkdownV2")
+            msgqueue.reply_to(msg, reply,  parse_mode="MarkdownV2")
 
 @bot.message_handler(commands=['deletealbum'])
 def tgDeleteAlbumCmd(msg):
@@ -513,9 +516,9 @@ def tgDeleteAlbumCmd(msg):
     args = msg.text.split(" ")
     if len(args) > 1:
         if imgur.deleteImgurAlbum(args[1], msg.from_user.id) == True:
-            bot.reply_to(msg, "Album deleted.")
+            msgqueue.reply_to(msg, "Album deleted.")
         else:
-            bot.reply_to(msg, "Error cannot find {} album.".format(args[1]))
+            msgqueue.reply_to(msg, "Error cannot find {} album.".format(args[1]))
 
 @bot.message_handler(commands=['whois'])
 def tgWhoisCmd(msg):
@@ -551,9 +554,9 @@ Sign on: {signontime}
             if "away" in user:
                 reply += "Away (since {}): {}\n".format(time.strftime("%I:%M %p %m/%d/%Y", time.localtime(float(user["away"]["ts"]))), user["away"]["reason"])
 
-            bot.reply_to(msg, reply)
+            msgqueue.reply_to(msg, reply)
         else:
-            bot.reply_to(msg, f"Error: {args[1]} no such nickname.")
+            msgqueue.reply_to(msg, f"Error: {args[1]} no such nickname.")
 
 @bot.message_handler(commands=['topic'])
 def tgTopicCmd(msg):
@@ -566,9 +569,9 @@ def tgTopicCmd(msg):
     if remoteServer["chans"][chan]["topic"]:
         t = remoteServer["chans"][chan]["topic"]
 
-        bot.reply_to(msg, "Topic for {}:\n\n{}\n\nSet by {} at {}".format(chan, t["text"], t["who"], time.strftime("%I:%M %p on %m/%d/%Y", time.localtime(float(t["ts1"])))))
+        msgqueue.reply_to(msg, "Topic for {}:\n\n{}\n\nSet by {} at {}".format(chan, t["text"], t["who"], time.strftime("%I:%M %p on %m/%d/%Y", time.localtime(float(t["ts1"])))))
     else:
-        bot.reply_to(msg, f"No topic set for {chan}")
+        msgqueue.reply_to(msg, f"No topic set for {chan}")
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def tgSendIRCMsg(msg):
@@ -581,11 +584,11 @@ def tgSendIRCMsg(msg):
         chan = channelFromTGID(msg.chat.id)
 
         if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), chan) == False:
-            bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+            msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
         if checkBan(nick, chan) == True:
-            bot.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
+            msgqueue.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
             return
 
         msgText = msg.text
@@ -605,7 +608,7 @@ def tgSendIRCMsg(msg):
                 log("PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "PASTEBIN: Created paste {} for {} in {}".format(paste, msg.from_user.username, msg.chat.id))
                 sendIRCPrivMsg(sock, nick, chan, "{}... Continued: {}".format(msgText[0:150].replace("\n", ""), paste))
-                bot.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
+                msgqueue.reply_to(msg, "Created unlisted paste {} and sent it to IRC".format(paste))
             else:
                 sendIRCPrivMsg(sock, nick, chan, msgText)
         else:
@@ -614,17 +617,17 @@ def tgSendIRCMsg(msg):
         updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
         if userIDFromTGID(msg.from_user.id) == False:
-            bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+            msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
         if tgUserPMOpen(msg.from_user.id) == False:
-            bot.reply_to(msg, "You have not created a private message with a user")
+            msgqueue.reply_to(msg, "You have not created a private message with a user")
             return
 
         toUID = getTGUserPM(msg.from_user.id)
         to    = nickFromUID(toUID)
 
-        bot.reply_to(msg, "Sending to {}".format(to))
+        msgqueue.reply_to(msg, "Sending to {}".format(to))
         sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg)
     
         updateLastMsg(msg.from_user.id)
@@ -636,7 +639,7 @@ def tgChatMember(message: types.ChatMemberUpdated):
     new = message.new_chat_member
 
     if new.status == 'member':
-        bot.send_message(message.chat.id, "Hello {name}!  This is an IRC relay group chat, you will now be connected to as {user}".format(name=new.user.first_name, user=new.user.username))
+        msgqueue.send_message(message.chat.id, "Hello {name}!  This is an IRC relay group chat, you will now be connected to as {user}".format(name=new.user.first_name, user=new.user.username))
 
 
 @bot.message_handler(content_types=['photo'])
@@ -649,7 +652,7 @@ def photo(msg):
     src = channelFromTGID(msg.chat.id)
 
     if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), src) == False:
-            bot.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+            msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
 
     files = []
@@ -688,14 +691,14 @@ def photo(msg):
             chan = channelFromTGID(msg.chat.id)
 
             if checkBan(nick, chan) == True:
-                bot.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
+                msgqueue.reply_to(msg, "Cannot send message to {}, you are banned.".format(chan))
                 return
 
             sendIRCPrivMsg(sock, nick, chan, mesg)
 
         elif msg.chat.type == "private":
             if tgUserPMOpen(msg.from_user.id) == False:
-                bot.reply_to(msg, "You have not created a private message with a user")
+                msgqueue.reply_to(msg, "You have not created a private message with a user")
                 return
 
             toUID = getTGUserPM(msg.from_user.id)
@@ -1050,38 +1053,38 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
 
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
-            bot.send_message(to, "* {}{}".format(senderNick, msg))
+            msgqueue.send_message(to, "* {}{}".format(senderNick, msg))
         else:
             if msgType == "PRIVMSG":
-                bot.send_message(to, "<{}> {}".format(senderNick, msg))
+                msgqueue.send_message(to, "<{}> {}".format(senderNick, msg))
             elif msgType == "NOTICE":
                 if re.search(r"\*\*\*\*\* (.*?) Help \*\*\*\*\*", msg):
                     noticeBufMode = True
                 if re.search(r"\*\*\*\*\* End of Help \*\*\*\*\*", msg):
                     noticeBufMode = False
-                    bot.send_message(to, noticeBuf)
+                    msgqueue.send_message(to, noticeBuf)
                     noticeBuf = ""
                 
                 if noticeBufMode == True:
                     noticeBuf += "-{}- {}\n".format(senderNick, msg)
                 else:
-                    bot.send_message(to, "-{}- {}".format(senderNick, msg))        
+                    msgqueue.send_message(to, "-{}- {}".format(senderNick, msg))        
     elif target in localServer["chanmap"]:
         to = localServer["chanmap"][target]
         nick = nickFromUID(nick)
 
         if re.search(r"ACTION (.*)", msg):
             msg = re.sub("ACTION ", "", msg)
-            bot.send_message(to, "* {}{}".format(nick, msg))
+            msgqueue.send_message(to, "* {}{}".format(nick, msg))
         else:
             if msgType == "PRIVMSG":
-                bot.send_message(to, "<{}> {}".format(nick, msg))
+                msgqueue.send_message(to, "<{}> {}".format(nick, msg))
             elif msgType == "NOTICE":
-                bot.send_message(to, "-{}- {}".format(nick, msg))    
+                msgqueue.send_message(to, "-{}- {}".format(nick, msg))    
 
 
 def handleSocket(rawdata, sock):
-    global initalBurstSent, prevline, logChannelJoined
+    global initalBurstSent, prevline, logChannelJoined, remoteServer
 
     for data in rawdata.split("\n"):
         if data == "": continue
@@ -1152,17 +1155,20 @@ def handleSocket(rawdata, sock):
             matches = re.search(r":(.*?) FJOIN (.*?) (\d+) (.*?) :(.*)", data)
             if matches:
                 matches = matches.groups()
-                remoteServer["chans"][matches[1]] = {}
-                remoteServer["chans"][matches[1]]["ts"] = matches[2]
-                remoteServer["chans"][matches[1]]["modes"] = []
-                remoteServer["chans"][matches[1]]["meta"] = {}
-                remoteServer["chans"][matches[1]]["topic"] = {}
+
+                if matches[1] not in remoteServer["chans"]:
+                    remoteServer["chans"][matches[1]] = {}
+                    remoteServer["chans"][matches[1]]["ts"] = matches[2]
+                    remoteServer["chans"][matches[1]]["modes"] = []
+                    remoteServer["chans"][matches[1]]["meta"] = {}
+                    remoteServer["chans"][matches[1]]["topic"] = {}
 
                 for mode in matches[3]:
                     if mode == "+": continue
                     remoteServer["chans"][matches[1]]["modes"].append([mode, None])
 
-                remoteServer["chans"][matches[1]]["users"] = []
+                if "users" not in remoteServer["chans"][matches[1]]:
+                    remoteServer["chans"][matches[1]]["users"] = []
 
                 for user in matches[4].split(" "):
                     usermatch = re.search(r"(.*?),(.*)", user)
@@ -1241,14 +1247,16 @@ def handleSocket(rawdata, sock):
 
                     elif setMode == "-":
                         if matches[4] != "":
-                            remoteServer["chans"][matches[1]]["modes"].remove([mode, targets[modeCnt]])
+                            if [mode, targets[modeCnt]] in remoteServer["chans"][matches[1]]["modes"]:
+                                remoteServer["chans"][matches[1]]["modes"].remove([mode, targets[modeCnt]])
                             
                             if nickFromUID(targets[modeCnt]) != False:
                                 readableModes.append("-{} {}".format(mode, nickFromUID(targets[modeCnt])))
                             else:
                                 readableModes.append("-{} {}".format(mode, targets[modeCnt]))
                         else:
-                            remoteServer["chans"][matches[1]]["modes"].append([mode, None])
+                            if [mode, None] in remoteServer["chans"][matches[1]]["modes"]:
+                                remoteServer["chans"][matches[1]]["modes"].remove([mode, None])
 
                             readableModes.append("-{}".format(mode))
 
@@ -1259,7 +1267,7 @@ def handleSocket(rawdata, sock):
                     who = nickFromUID(matches[0])
 
                     if who != False:
-                        bot.send_message(to, "⚫ {} updated channel modes: {}".format(who, " ".join(readableModes)))
+                        msgqueue.send_message(to, "⚫ {} updated channel modes: {}".format(who, " ".join(readableModes)))
 
                 continue
 
@@ -1390,7 +1398,7 @@ def handleSocket(rawdata, sock):
                                 to = localServer["chanmap"][chan]
 
                             if to not in sent:
-                                bot.send_message(to, "⚫ {} is now known as {}".format(oldnick, submatch[1]))
+                                msgqueue.send_message(to, "⚫ {} is now known as {}".format(oldnick, submatch[1]))
                                 sent.append(to)
 
                 submatch = re.search(r"SAJOIN (.*?) :(.*)", matches[1])
@@ -1441,7 +1449,7 @@ def handleSocket(rawdata, sock):
                         to = localServer["chanmap"][chan]
 
                         if to not in sent:
-                            bot.send_message(to, "⚫ {} is now known as {}".format(oldnick, matches[1]))
+                            msgqueue.send_message(to, "⚫ {} is now known as {}".format(oldnick, matches[1]))
                             sent.append(to)
 
                 continue
@@ -1482,9 +1490,9 @@ def handleSocket(rawdata, sock):
                     to = localServer["chanmap"][args[0]]
 
                     if len(args) > 1:
-                        bot.send_message(to, "⬅️ {} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "", 1)))
+                        msgqueue.send_message(to, "⬅️ {} has left {} (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], args[0], " ".join(args[1:]).replace(":", "", 1)))
                     else:
-                        bot.send_message(to, "⬅️ {} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
+                        msgqueue.send_message(to, "⬅️ {} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
 
                 remoteServer["chans"][args[0]]["users"].remove(matches[0])
                 remoteServer["uids"][matches[0]]["chans"].remove(args[0])
@@ -1498,7 +1506,7 @@ def handleSocket(rawdata, sock):
                 if args[0] in localServer["chanmap"]:
                     to = localServer["chanmap"][args[0]]
 
-                    bot.send_message(to, "➡️ {} ({}@{}) has joined {}".format(
+                    msgqueue.send_message(to, "➡️ {} ({}@{}) has joined {}".format(
                         remoteServer["uids"][matches[0]]["nick"],
                         remoteServer["uids"][matches[0]]["user"],
                         remoteServer["uids"][matches[0]]["host"],
@@ -1518,9 +1526,9 @@ def handleSocket(rawdata, sock):
                         to = localServer["chanmap"][chan]
 
                         if matches[1]:
-                            bot.send_message(to, "⬅️ {} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
+                            msgqueue.send_message(to, "⬅️ {} has quit (Reason: {})".format(remoteServer["uids"][matches[0]]["nick"], matches[1].replace(":", "", 1)))
                         else:
-                            bot.send_message(to, "⬅️ {} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
+                            msgqueue.send_message(to, "⬅️ {} has quit".format(remoteServer["uids"][matches[0]]["nick"]))
 
                     if matches[0] in remoteServer["chans"][chan]["users"]:
                         remoteServer["chans"][chan]["users"].remove(matches[0])
@@ -1542,7 +1550,7 @@ def handleSocket(rawdata, sock):
                         if tgUsernameFromUID(matches[2]) != False:
                             who = "@" + tgUsernameFromUID(matches[2])
 
-                    bot.send_message(to, "⚫ {} kicked {} (Reason: {})".format(
+                    msgqueue.send_message(to, "⚫ {} kicked {} (Reason: {})".format(
                         nickFromUID(matches[0]),
                         who,
                         matches[4]
@@ -1587,6 +1595,7 @@ def main():
     global sock, conf
     
     prevline = ""
+    data = ""
 
     print("Creating telegram polling thread.")
     threading.Thread(target=tgPoll, name='bot_infinity_polling', daemon=True).start()
@@ -1618,8 +1627,15 @@ def main():
             
             prevline = data
 
+    except Exception as e:
+        print(f"Error: {e}\n\nTraceback:")
+        traceback.print_exc()
+
     finally:
+        log("Final read: {}".format(data))
         imgur.stopUploadThread()
+        msgqueue.stopMessageQueueThread()
+        
         print("\nWriting bridgestates.json")
         JSONParser.writeLocalServerState()
 
