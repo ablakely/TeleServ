@@ -112,7 +112,9 @@ class TGMessageQueue():
                         continue
                 elif self.msgQueue[i]["type"] == "MESSAGE":
                     try:
-                        self.bot.send_message(self.msgQueue[i]["to"], self.msgQueue[i]["text"], parse_mode=self.msgQueue[i]["mode"])
+                            self.bot.send_message(self.msgQueue[i]["to"], self.msgQueue[i]["text"], parse_mode=self.msgQueue[i]["mode"])
+                            del(self.msgQueue[i])
+                            self.flushQueue()
                     except Exception as e:
                         if re.search(r"A request to the Telegram API was unsuccessful. Error code: 429. Description: Too Many Requests", str(e)): 
                             secs = int(str(e).split(" ")[-1])
@@ -126,7 +128,5 @@ class TGMessageQueue():
 
                     finally:
                         if len(self.msgQueue) == 0: break
-
-                        del(self.msgQueue[i])
                         continue
 

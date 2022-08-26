@@ -628,7 +628,7 @@ def tgSendIRCMsg(msg):
         to    = nickFromUID(toUID)
 
         msgqueue.reply_to(msg, "Sending to {}".format(to))
-        sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg)
+        sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg.text)
     
         updateLastMsg(msg.from_user.id)
 
@@ -651,8 +651,13 @@ def photo(msg):
     nick = nickFromTGID(msg.from_user.id)
     src = channelFromTGID(msg.chat.id)
 
-    if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), src) == False:
+    if msg.chat.type == "group":
+        if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), src) == False:
             msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
+            return
+    elif msg.chat.type == "private":
+        if tgUserPMOpen(msg.from_user.id) == False:
+            msgqueue.reply_to(msg, "You have not created a PM with a user.")
             return
 
     files = []
@@ -703,6 +708,8 @@ def photo(msg):
 
             toUID = getTGUserPM(msg.from_user.id)
             sendIRCPrivMsg(sock, nick, toUID, mesg)
+
+            msgqueue.reply_to(msg, "Sent to {}".format(nickFromUID(toUID)))
 
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "IMGUR: Uploaded {} for {} in {}".format(link, msg.from_user.username, msg.chat.id))
 
