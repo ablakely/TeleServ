@@ -302,6 +302,13 @@ def inChannel(uid, chan):
 
     return True
 
+def closePMs(pmuid):
+    for uid in localServer["uids"]:
+        if "pm" in localServer["uids"][uid]:
+            if pmuid == localServer["uids"][uid]["pm"]:
+                msgqueue.send_message(localServer["uids"][uid]["telegramid"], "{} has quit, closing PM.".format(nickFromUID(pmuid)))
+
+                localServer["uids"][uid]["pm"] = ""
 
 #
 # Utility functions
@@ -627,6 +634,8 @@ def tgSendIRCMsg(msg):
         toUID = getTGUserPM(msg.from_user.id)
         to    = nickFromUID(toUID)
 
+        if to == False: return
+
         msgqueue.reply_to(msg, "Sending to {}".format(to))
         sendIRCPrivMsg(sock, nickFromTGID(msg.from_user.id), toUID, msg.text)
     
@@ -700,6 +709,7 @@ def photo(msg):
                 return
 
             sendIRCPrivMsg(sock, nick, chan, mesg)
+            msgqueue.reply_to(msg, "Sent to {}, see your uploads with /photos in DM.".format(chan))
 
         elif msg.chat.type == "private":
             if tgUserPMOpen(msg.from_user.id) == False:
@@ -1501,8 +1511,12 @@ def handleSocket(rawdata, sock):
                     else:
                         msgqueue.send_message(to, "⬅️ {} has left {}".format(remoteServer["uids"][matches[0]]["nick"], args[0]))
 
-                remoteServer["chans"][args[0]]["users"].remove(matches[0])
-                remoteServer["uids"][matches[0]]["chans"].remove(args[0])
+                if matches[0] in remoteServer["chans"]:
+                    remoteServer["chans"][args[0]]["users"].remove(matches[0])
+    
+                if args[0] in remoteServer["uids"]:
+                    remoteServer["uids"][matches[0]]["chans"].remove(args[0])
+    
                 continue
 
             matches = re.search(r":(.*?) IJOIN (.*)", data)
@@ -1539,6 +1553,8 @@ def handleSocket(rawdata, sock):
 
                     if matches[0] in remoteServer["chans"][chan]["users"]:
                         remoteServer["chans"][chan]["users"].remove(matches[0])
+
+                    closePMs(matches[0])
 
                 del(remoteServer["uids"][matches[0]])
 
