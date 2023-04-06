@@ -178,14 +178,14 @@ def createTGUser(msg):
     if msg.from_user.last_name:
         name += " " + msg.from_user.last_name
 
-    if userIDFromTGID == False:
+    if userIDFromTGID(msg.from_user.id) == False:
         msgqueue.reply_to(msg, "Creating IRC client for {}".format(msg.from_user.username))
         sendIRCPrivMsg(sock, conf["IRC"]["nick"], conf["IRC"]["logchan"], "Creating client for {} in Telegram group: {}".format(msg.from_user.username, msg.chat.id))
    
         nick = msg.from_user.username[0:int(remoteServer["capab"]["NICKMAX"])]
         user = name.split(" ")[0][0:int(remoteServer["capab"]["IDENTMAX"])].lower()
-        name = name[0:remoteServer["capab"]["MAXREAL"]]
-        host = "t.me/{}".format(msg.from_user.username)[0:remoteServer["capab"]["MAXHOST"]]
+        name = name[0:int(remoteServer["capab"]["MAXREAL"])]
+        host = "t.me/{}".format(msg.from_user.username)[0:int(remoteServer["capab"]["MAXHOST"])]
 
         uid = addIRCUser(sock, user, nick, host, "+i", name)
 
@@ -208,7 +208,7 @@ def createTGUser(msg):
             msgqueue.reply_to(msg, "Cannot connect you to {}, you are banned.".format(channelFromTGID(msg.chat.id)))
             return
 
-        joinIRCUser(sock, userIDFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
+        joinIRCUser(sock, nickFromTGID(msg.from_user.id), channelFromTGID(msg.chat.id), "v")
 
         if channelFromTGID(msg.chat.id) not in localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"]:
             localServer["uids"][userIDFromTGID(msg.from_user.id)]["chans"].append(channelFromTGID(msg.chat.id))
@@ -554,7 +554,6 @@ Sign on: {signontime}
             if "meta" in user:
                 if "accountname" in user["meta"]:
                     reply += f"Account: {user['meta']['accountname']}\n"
-
             if "opertype" in user:
                 reply += f"{user['opertype']} on {conf['IRC']['network']}\n"
 
@@ -815,6 +814,9 @@ def checkBanMask(nick, user, host, banmask):
     return True
 
 def checkBan(nick, chan):
+    if nick == False:
+        return False
+
     uid = uidFromNick(nick)
     user = localServer["uids"][uid]["user"] if "user" in localServer["uids"][uid] else ""
     host = localServer["uids"][uid]["host"] if "host" in localServer["uids"][uid] else ""
