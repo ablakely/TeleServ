@@ -62,12 +62,17 @@ class TSImgurAPI():
             self.CLIENT = ImgurClient(opts["API_ID"], opts["API_SECRET"])
             self.AUTHORIZED = False
         else:
-            self.CLIENT = ImgurClient(opts["API_ID"], opts["API_SECRET"], state["IMGURCREDS"]["refresh_token"])
-            self.CLIENT.set_user_auth(state["IMGURCREDS"]["access_token"], state["IMGURCREDS"]["refresh_token"])
-            self.AUTHORIZED = True
+            try:
+                self.CLIENT = ImgurClient(opts["API_ID"], opts["API_SECRET"], state["IMGURCREDS"]["refresh_token"])
+                self.CLIENT.set_user_auth(state["IMGURCREDS"]["access_token"], state["IMGURCREDS"]["refresh_token"])
+                self.AUTHORIZED = True
 
-            print("Creating imgur uploader thread")
-            self.startUploadThread()
+                print("Creating imgur uploader thread")
+                self.startUploadThread()
+            except Exception as e:
+                print(f"Error: Imgur client failure: {str(e)}\n")
+                self.ENABLED = False
+
 
     def getAuthURL(self):
         return self.CLIENT.get_auth_url('pin')

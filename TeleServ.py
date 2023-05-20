@@ -136,6 +136,9 @@ def tgUsernameFromUID(tuid):
 def tgUserInChannel(tgid, chan):
     tgid = str(tgid)
 
+    if chan not in remoteServer["chans"]:
+        return False
+
     for uid in localServer["uids"]:
         if tgid == str(localServer["uids"][uid]["telegramid"]) and userIDFromTGID(tgid) in remoteServer["chans"][chan]["users"]:
             return True
@@ -169,7 +172,7 @@ def getTGUserPM(tgid):
 def createTGUser(msg):
     global localServer, sock
 
-    if msg.chat.type != "group": return
+    if msg.chat.type not in ["group", "supergroup"]: return
     if not msg.from_user.username:
         msgqueue.reply_to(msg, "Error: You currently don't have a username set.")
         return False
@@ -268,7 +271,7 @@ def uidToTGID(tuid):
 
 def updateLastMsg(tgid):
     for uid in localServer["uids"]:
-        if tgid == localServer["uids"][uid]["telegramid"]:
+        if int(tgid) == int(localServer["uids"][uid]["telegramid"]):
             localServer["uids"][uid]["lastmsg"] = int(time.time())
 
 def tgidFromNick(nick):
@@ -278,12 +281,18 @@ def tgidFromNick(nick):
     return False
 
 def getLastMsgTime(tuid):
+    for uid in localServer["uids"]:
+        if tuid == localServer["uids"][uid]["telegramid"]:
+            return localServer["uids"][uid]["lastmsg"]
+
     if tuid in localServer["uids"]:
-        return localServer["uids"][tuid]["lastmsg"]
-    return False
+        if "lastmsg" in localServer["uids"][tuid]:
+            return localServer["uids"][tuid]["lastmsg"]
+
+    return 0
 
 def findIRCUserFromMSG(msg, lookupNick=True):
-    if msg.chat.type == "group":
+    if msg.chat.type in ["group", "supergroup"]:
         to = channelFromTGID(msg.chat.id)
     elif msg.chat.type == "private":
         to = userIDFromTGID(msg.from_user.id)
@@ -364,7 +373,7 @@ Any other messaged will be relayed to the IRC channel or user\."""
 def setChan(msg):
     global sock, localServer
 
-    if msg.chat.type != "group": return
+    if msg.chat.type not in ["group", "supergroup"]: return
 
     args = msg.text.split()
     if len(args) > 1:
@@ -391,7 +400,7 @@ def tgSendIRCAction(msg):
         msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
+    if msg.chat.type not in ["group", "supergroup"] and tgUserPMOpen(msg.from_user.id) == False:
         msgqueue.reply_to(msg, "You have not created a private message with a user")
         return
     
@@ -408,12 +417,13 @@ def tgSendIRCNotice(msg):
 
     to = findIRCUserFromMSG(msg)
 
-    if msg.chat.type != "group" and msg.chat.type != "private": return
+    if msg.chat.type not in ["group", "private", "supergroup"]: return
+
     if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), to) == False:
         msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
         return
 
-    if msg.chat.type == "group" and tgUserPMOpen(msg.from_user.id) == False:
+    if msg.chat.type in ["group", "supergroup"] and tgUserPMOpen(msg.from_user.id) == False:
         msgqueue.reply_to(msg, "You have not created a private message with a user")
         return
 
@@ -483,7 +493,7 @@ def tgSetNick(msg):
 
 @bot.message_handler(commands=['names','users'])
 def tgNamesCmd(msg):
-    if msg.chat.type != "group": return
+    if msg.chat.type not in ["group", "supergroup"]: return
 
     if channelFromTGID(msg.chat.id) == False:
         msgqueue.reply_to(msg, "I am not linking this group to an IRC channel.")
@@ -529,7 +539,7 @@ def tgDeleteAlbumCmd(msg):
 
 @bot.message_handler(commands=['whois'])
 def tgWhoisCmd(msg):
-    if msg.chat.type not in ["private", "group"]: return
+    if msg.chat.type not in ["private", "group", "supergroup"]: return
 
     args = msg.text.split(" ")
     if len(args) > 1:
@@ -566,7 +576,7 @@ Sign on: {signontime}
 
 @bot.message_handler(commands=['topic'])
 def tgTopicCmd(msg):
-    if msg.chat.type != "group": return
+    if msg.chat.type not in ["group", "supergroup"]: return
 
     chan = channelFromTGID(msg.chat.id)
 
@@ -583,11 +593,13 @@ def tgTopicCmd(msg):
 def tgSendIRCMsg(msg):
     global sock, localServer
 
-    if msg.chat.type == "group":
+    if msg.chat.type in ["group", "supergroup"]:
         if channelFromTGID(msg.chat.id) == False: return
 
         nick = nickFromTGID(msg.from_user.id)
         chan = channelFromTGID(msg.chat.id)
+
+        updateLastMsg(msg.from_user.id)
 
         if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), chan) == False:
             msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
@@ -620,7 +632,6 @@ def tgSendIRCMsg(msg):
         else:
             sendIRCPrivMsg(sock, nick, chan, msgText)
     
-        updateLastMsg(msg.from_user.id)
     elif msg.chat.type == "private":
         if userIDFromTGID(msg.from_user.id) == False:
             msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
@@ -659,7 +670,7 @@ def photo(msg):
     nick = nickFromTGID(msg.from_user.id)
     src = channelFromTGID(msg.chat.id)
 
-    if msg.chat.type == "group":
+    if msg.chat.type in ["group", "supergroup"]:
         if userIDFromTGID(msg.from_user.id) == False or inChannel(userIDFromTGID(msg.from_user.id), src) == False:
             msgqueue.reply_to(msg, "You haven't join the IRC server yet, please use /conn")
             return
@@ -700,7 +711,7 @@ def photo(msg):
                 mesg = "Sent a photo: {}".format(link)
 
 
-        if msg.chat.type == "group":
+        if msg.chat.type in ["group", "supergroup"]:
             chan = channelFromTGID(msg.chat.id)
 
             if checkBan(nick, chan) == True:
@@ -724,6 +735,9 @@ def photo(msg):
 
     imgur.upload(files, nick, msg.from_user.id, src, msg.caption if msg.caption else "", msg, callback)
 
+@bot.message_handler(content_types=['migrate_to_chat_id','migrate_from_chat_id'])
+def tgMigrateChatID(msg):
+    print(msg)
 
 #
 # Handle our connection to the IRC Server
@@ -1023,6 +1037,11 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
             sendIRCNotice(sock, tsuid, nick, "***** \x02TeleServ Help\x02 *****")
             sendIRCNotice(sock, tsuid, nick, "\x02USERLIST\x02    List of Telegram users connected and their IRC nicks.")
             sendIRCNotice(sock, tsuid, nick, "\x02WHOIS\x02       Gives info about a Telegram user.")
+            sendIRCNotice(sock, tsuid, nick, "\x02KICK\x02        Removes a Telegram user from a channel.")
+            sendIRCNotice(sock, tsuid, nick, "\x02DELETE\x02      Deletes and disconnects a Telegram user from IRC.")
+            sendIRCNotice(sock, tsuid, nick, "\x02BAN\x02         Bans a Telegram user from using TeleServ.")
+            sendIRCNotice(sock, tsuid, nick, "\x02UNBAN\x02       Revokes a ban on a Telegram user.")
+
             if conf["enableRAW"] == True:
                 sendIRCNotice(sock, tsuid, nick, "\x02RAW\x02         Sends raw data to server socket. (Only use if you know how.)")
             sendIRCNotice(sock, tsuid, nick, "**** \x02End of Help\x02 *****")
@@ -1033,9 +1052,17 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
                 sendIRCNotice(sock, tsuid, nick, "@{} is connected as {} in channels: {}".format(localServer["uids"][k]["telegramuser"], localServer["uids"][k]["nick"], " ".join(localServer["uids"][k]["chans"])))
         elif "RAW" in msg or "raw" in msg and conf["enableRAW"] == True:
             tmp = msg.split(" ")
+
+            if len(tmp) < 2:
+                return sendIRCNotice(sock, tsuid, nick, "\x02SYNTAX:\x02 /msg {} raw <raw IRC>".format(conf["IRC"]["nick"]))
+
             ircOut(sock, " ".join(tmp[1:]))
         elif "IMGURPIN" in msg or "imgurpin" in msg:
             tmp = msg.split(" ")
+
+            if len(tmp) < 2:
+                return sendIRCNotice(sock, tsuid, nick, "\x02SYNTAX:\x02 /msg {} imgurpin <pin>".format(conf["IRC"]["nick"]))
+
             pin = " ".join(tmp[1:])
 
             sendIRCNotice(sock, tsuid, nick, "Fetching imgur auth tokens with pin: {}".format(pin))
@@ -1043,6 +1070,10 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
 
         elif "WHOIS" in msg or "whois" in msg:
             tmp = msg.split(" ")
+
+            if len(tmp) < 2:
+                return sendIRCNotice(sock, tsuid, nick, "\x02SYNTAX:\x02 /msg {} whois <nick>".format(conf["IRC"]["nick"]))
+
             tuid = uidFromNick(tmp[1]) if tmp[1][0] != "@" else uidFromTGUsername(tmp[1])
             usr = getUIDObj(tuid)
 
@@ -1052,7 +1083,10 @@ def ircPrivMsgHandler(uid, target, msg, msgType="PRIVMSG"):
                 sendIRCNotice(sock, tsuid, nick, "Nick          : {}".format(usr["nick"]))
                 sendIRCNotice(sock, tsuid, nick, "Name          : {}".format(usr["name"]))
                 sendIRCNotice(sock, tsuid, nick, "PM            : {}".format(nickFromUID(usr["pm"])))
-                sendIRCNotice(sock, tsuid, nick, "Last Msg      : {}".format(time.strftime('%H:%M:%S %d-%m-%Y', time.localtime(usr["lastmsg"]))))
+    
+                if "lastmsg" in usr:
+                    sendIRCNotice(sock, tsuid, nick, "Last Msg      : {}".format(time.strftime('%H:%M:%S %d-%m-%Y', time.localtime(usr["lastmsg"]))))
+    
                 sendIRCNotice(sock, tsuid, nick, "Telegram ID   : {}".format(usr["telegramid"]))
                 sendIRCNotice(sock, tsuid, nick, "Telegram User : @{}".format(usr["telegramuser"]))
                 sendIRCNotice(sock, tsuid, nick, "Channels      : {}".format(" ".join(usr["chans"])))

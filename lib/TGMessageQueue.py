@@ -104,6 +104,7 @@ class TGMessageQueue():
 
                             time.sleep(secs)
                             self.bot.reply_to(self.msgQueue[i]["msg"], self.msgQueue[i]["text"], parse_mode=self.msgQueue[i]["mode"])
+
                         else:
                             print(f"TGMessageQueue Error: {e}")
 
@@ -123,6 +124,10 @@ class TGMessageQueue():
                             time.sleep(secs)
                             self.flushQueue()
                             continue
+
+                        elif re.search(r"A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: group chat was upgraded to a supergroup chat", str(e)):
+                            print("dbug: {}".format(str(e)))
+                        
                         else:
                             print(f"TGMessageQueue Error: {e}")
 
